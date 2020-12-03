@@ -65,3 +65,37 @@ generate_xSITA_data <- function(N = 2000,
 
   return(df)
 }
+
+
+#' @title Generate simulated data for RD design
+#' @description Data set contains measured covariates X, outcome Y, treatment
+#'   assignment t, and logit(propensity), mu.
+#'
+#'   covariate data ~ normal(0,1);
+#'   t = 0 if X1 < c, 1 otherwise;
+#'   y ~ rho * X1 + sqrt(1-rho^2) * X2 + tau * t + epsilon;
+#'   epsilon ~ normal(0, 1)
+#'
+#' @param N numeric, sample size
+#' @param p numeric, number of features
+#' @param c numeric, cutoff for forcing variable
+#' @param rho numeric between 0 and 1.  0 => prog orthogonal to prop, 1=> prog
+#'   || prop
+#' @param sigma numeric noise to be added to y. y += sigma*rnorm(0,1)
+#' @param tau numeric additive treatment effect
+#' @return data.frame of covariates, y, t, and mu
+#' @export
+generate_rd_data <- function(N = 1000,
+                          p = 10,
+                          c = qnorm(0.75),
+                          rho = 0,
+                          sigma = 1,
+                          tau = 1) {
+
+  df <- data.frame(matrix(rnorm(p*N), ncol = p)) %>%
+    dplyr::mutate(t = X1 > c,
+                  y = tau * t + rho * X1 + sqrt(1 - rho ^ 2) * X2 + rnorm(N, sd = sigma),
+                  prog = rho * X1 + sqrt(1 - rho ^ 2) * X2)
+
+  return(df)
+}

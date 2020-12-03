@@ -1,6 +1,6 @@
 ---
 title: "Assignment-Control Plots: A Visualization tool for Causal Inference Studies"
-author: "Rachael Caelie (Rocky) Aikens"
+author: "Rachael C. Aikens, Michael Baiocchi"
 output: 
   pdf_document:
     number_sections: true
@@ -21,7 +21,7 @@ theme_set(theme_light())
 
 # Abstract
 
-An important step for many causal inference study designs is ensuring that the compared treated and control observations are similar in terms of their baseline measured covariates.  However, not all baseline variation is equally important.  In the observational context, blanacing on baseline variation summarized in a propensity score can help reduce bias due to self-selection. In both obeservational and experimental studies, reducing baseline variation associated with the expected outcomes can help increase the precision of causal effect estimates. In other study designs it can be essential to correctly characterize and efficiently use an instrumental variable, a treatment effect modifier, or a forcing variable.  We propose a set of visualization tools which reduce the space of measured covariates into a set of axes most important to a causal question.  These "assignment-control plots" and variations thereof may be a useful diagnostic and educational tool for a wide variety of causal inference study designs.
+An important step for many causal inference study designs is ensuring that the compared treated and control observations are similar in terms of their baseline measured covariates.  However, not all baseline variation is equally important.  In the observational context, balancing on baseline variation summarized in a propensity score can help reduce bias due to self-selection. In both obeservational and experimental studies, controlling baseline variation associated with the expected outcomes can help increase the precision of causal effect estimates. In some study designs, it can be essential to correctly characterize and efficiently use an instrumental variable, a treatment effect modifier, or a forcing variable.  We propose a set of visualization tools which reduce the space of measured covariates into a set of axes most important to a causal question.  These "assignment-control plots" and variations thereof may be a useful diagnostic and educational tool for a wide variety of causal inference study designs.
 
 # Introduction
 
@@ -158,7 +158,7 @@ AC_plot <- function(data, rho, title = ""){
 
 A first use for the assignment-control plot is as an informal data diagnostic. Researchers running observational studies often want a basic understanding of the baseline variation between the treatment and control groups before they begin. Plotting the standardized mean differences between the treatment groups is a common starting place to understand imbalances between groups, but when there are many covariates -- some of which are irrelevant -- it can be difficult to tell by eye which imbalances should be of most concern.  Histograms of propensity score overlap can be an important diagnostic for checking that the treatment and control groups overlap in terms of their probability of treatment (since this condition is essential for many causal inference methodologies).  However, the propensity score does not necessarily reflect all aspects of covariate balance which may be important. 
 
-```{r fig.width=8, fig.height=5, fig.cap="Assignment-Control plots (A-C) and propensity score density histograms (D-F) for three simulated observational datasets"}
+```{r fig.width=8, fig.height=5, fig.cap="Assignment-Control plots (A-C) and propensity score density histograms (D-F) for three simulated observational datasets. Red points represent treated observations, blue points represent control."}
 set.seed(125)
 rho <- 0.3
 #simulate data
@@ -209,7 +209,7 @@ m_caliper_match <- pairmatch(mahal_caliper_dist, controls = k, df)
 m_jointcaliper_match <- pairmatch(mahal_jointcaliper_dist, controls = k, df)
 ```
 
-```{r, fig.width=5.5, fig.height= 5.5,fig.cap="Assignment control plots depicting four different 1-to-1 matching schemes.  (A) Mahalanobis distance matching, (B), propensity score matching, (C) Mahalanobis distance matching with a propensity score caliper, (D) Mahalanobis distance matching with propensity and prognostic score calipers."}
+```{r, fig.width=5.5, fig.height= 5.5,fig.cap="Assignment control plots depicting four different 1-to-1 matching schemes.  Red points represent treated observations, blue points represent control.  Dotted lines connect matched individuals. (A) Mahalanobis distance matching, (B), propensity score matching, (C) Mahalanobis distance matching with a propensity score caliper, (D) Mahalanobis distance matching with propensity and prognostic score calipers."}
 a <- match_viz(df, m_match, rho, title = "\nMahalanobis Match")
 b <- match_viz(df, oracle_prop_match, rho, title = "\nPropensity Match")
 c <- match_viz(df, m_caliper_match, rho, title = "Mahalanobis Match,\nPropensity Caliper")
@@ -237,7 +237,7 @@ As an illustrative example, we consider the simulation set-up as before, except 
     \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}.
 \end{align*}
 
-Now, the ideal propensity score, $\tilde{\phi}$ would summarize just the variation in $X_1$ and omit any variation in $X_3$.  Instead, $X_3$ should be summarized in it's own "randomization" axis.  The plots below depict the same matched dataset, projected down onto each pair of axes ($\tilde{\phi} \times \Psi$, $IV \times \Psi$, and $IV \times \tilde{\phi}$).  The matchings shown were produced from Mahalanobis distance matching on all covariates except $X_3$ with propensity and prognostic score calipers.  In panel (A) we see that the selected pairs are very close in terms of propensity and prognosis, but they tend to be more distant in terms of $X_3$. This visualization may be an especially useful companion to study designs using a nearfar matching approach [@baiocchi2012near]. The randomization-assignment-control plot may also have analouges in the randomized experiment setting, wherein the propensity score axis is omitted, and the "instrument" axis is replaced by an axis summarizing compliance behavior (e.g. "dose").
+Now, the ideal propensity score, $\tilde{\phi}$ would summarize just the variation in $X_1$ and omit any variation in $X_3$.  Instead, $X_3$ should be summarized in it's own "randomization" axis.  Figure 3 depicts the same matched dataset, projected down onto each pair of axes ($\tilde{\phi} \times \Psi$, $IV \times \Psi$, and $IV \times \tilde{\phi}$).  The matchings shown were produced from Mahalanobis distance matching on all covariates except $X_3$ with propensity and prognostic score calipers.  In figure 3A we see that the selected pairs are very close in terms of propensity and prognosis, but they tend to be more distant in terms of $X_3$ (Figure 3B-C). This visualization may be an especially useful companion to study designs using a nearfar matching approach [@baiocchi2012near]. The randomization-assignment-control plot may also have analouges in the randomized experiment setting, wherein the propensity score axis is omitted, and the "instrument" axis is replaced by an axis summarizing compliance behavior (e.g. "dose").
 
 ```{r}
 rho <- 0.5
@@ -403,7 +403,7 @@ RA_match_plot <- function(data, match, k = 1, title = "Matching"){
 }
 ```
 
-```{r, fig.width=8, fig.height=3, fig.cap="Assignment-Control-Randomization plots.  Each panel depicts a different 2-D projection of the same dataset within the assignment-control-randomization space.  The matches depicted are produced by Mahalanobis distance matching on all variables except the IV with propensity score and prognostic score calipers."}
+```{r, fig.width=8, fig.height=3, fig.cap="Randomization-Assignment-Control plots.  Each panel depicts a different 2-D projection of the same dataset within the randomization-assignment-control space.  Red points represent treated observations, blue points represent control.  Dotted lines connect matched individuals. The matches depicted are produced by Mahalanobis distance matching on all variables except the IV with propensity score and prognostic score calipers."}
 prop_model = formula(t ~ . - mu - y)
 
 # mahalanobis match
@@ -421,7 +421,7 @@ c <- RA_match_plot(data = df, match = m_caliper_match)
 ggarrange(a, b, c, ncol = 3, nrow =1, labels = "AUTO")
 ```
 
-A final observation to note is that the propensity and prognosis scores are correllated, but the IV is uncorrellated with either of the other two scores.  This is actually not only expected but important: the propensity score *should* summarize variation correllated with the expected potential outcome, and the IV should be uncorrellated with the expected potential outcome in order to be an IV.  Thus, we hope to expect to see correllation in the $\tilde{\phi} \times \Psi$ space, but not in $IV \times \Psi$, and $IV \times \tilde{\phi}$.
+A final observation to note is that the propensity and prognosis scores are correllated, but the IV is uncorrellated with either of the other two scores (Figure 3).  This is actually not only expected but important: the propensity score *should* summarize variation correllated with the expected potential outcome, and the IV should be uncorrellated with the expected potential outcome in order to be an IV.  Thus, we hope to expect to see correllation in the $\tilde{\phi} \times \Psi$ space, but not in $IV \times \Psi$, and $IV \times \tilde{\phi}$.
 
 ```{r nearfar matching, eval = F}
 # I don't think I understand how this works well enough to implement it right now.
@@ -476,7 +476,7 @@ RD_plot <- function(data) {
 ```
 
 
-```{r fig.cap="Diagnostic plots for a sharp regression discontinuity study.  (A) a force-control plot, depicting each observational unit in terms of it's prognostic score and a forcing variable (B) a traditional regression discontinuity plot depicting the relationship between the outcome and the forcing variable"}
+```{r fig.cap="Diagnostic plots for a sharp regression discontinuity study. Red points represent treated subjects, blue points represent control. (A) a force-control plot, depicting each observational unit in terms of it's prognostic score and a forcing variable (B) a traditional regression discontinuity plot depicting the relationship between the outcome and the forcing variable"}
 rho <- 0.9
 df <- generate_rd_data(rho = rho, sigma = 0.25)
 
@@ -545,16 +545,16 @@ ggarrange(a,b,c, ncol= 3, labels = "AUTO" )
 
 While there is a wide and increasing variety of methods which use some articulation of propensity and prognosis to estimate a treatment effect. However, the theorems underlying the use of the propensity score and the theorems underlying the use of the prognostic score both depend on the absense of unmeasured confounding. Violations of this assumption have ramifications for a wide variety of causal inference approaches, and assignment-aontrol plots may be similarly misleading when unmeasured confounding is at play.
 
-Figure 3 illustrates the behavior of assignment control plots in a scenario with unobserved confounding.  We add to our data-generating set-up an unobserved confounder, $U$, such that:
+Figure 5 illustrates the behavior of assignment control plots in a scenario with unobserved confounding.  We add to our data-generating set-up an unobserved confounder, $U$, such that:
 
 \begin{align*}
     \phi(X_i) &= c_1 X_{i1} -  \eta U - c_0,\\
     \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2} + \eta U.
 \end{align*}
 
-Suppose we somehow ascertained exactly the correct relationships between the two score models and the *observed* covariates, so that our propensity and prognostic models are precisely $\hat{\phi}(X_i) = X_{i1}/c_1 - c_0$ and $\hat{\Psi}(X_i) = \rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}$, respectively.  That is, the score models are exactly correct, except that they do not include the unobserved confounder.  Figure 3 panels A-C depict the assignment control plots we might make and matchings we might produce using these score models, $\hat{\phi}$ and $\hat{\Psi}$.  Since both the assignment-control plots and the matchings use the score models $\hat{\phi}$ and $\hat{\Psi}$ that fail to capture unobserved confounding, our propensity matches appear quite close in $\hat{\phi}$ (Figure 3B) and our mahalanobis distance matchings with propensity and prognostic score calipers appear quite close in the assignment-control space defined by $\hat{\phi} \times \hat{\Psi}$ (Figure 3C).  
+Suppose we somehow ascertained exactly the correct relationships between the two score models and the *observed* covariates, so that our propensity and prognostic models are precisely $\hat{\phi}(X_i) = X_{i1}/c_1 - c_0$ and $\hat{\Psi}(X_i) = \rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}$, respectively.  That is, the score models are exactly correct, except that they do not include the unobserved confounder.  Figure 5 panels A-C depict the assignment control plots we might make and matchings we might produce using these score models, $\hat{\phi}$ and $\hat{\Psi}$.  Since both the assignment-control plots and the matchings use the score models $\hat{\phi}$ and $\hat{\Psi}$ that fail to capture unobserved confounding, our propensity matches appear quite close in $\hat{\phi}$ (Figure 5B) and our mahalanobis distance matchings with propensity and prognostic score calipers appear quite close in the assignment-control space defined by $\hat{\phi} \times \hat{\Psi}$ (Figure 5C).  
 
-However, panels D-F in Figure 3 show the same matches in the *true* assignment-control space, in which $\phi$ and $\Psi$ are known to depend on the unobserved confounder, $U$.  In each matching, pairs tend to differ from each other due to baseline variations in the unobserved confounder which were not accounted for in the matching process.  The contrast between Figures 3C and 3F most cleanly illustrate how failing to account for $U$ results in systematic error: in the true assignment-control space, one matched individual in each pair tends to have both higher prognostic score and higher propensity score than its partner. Since this individual is more often the treated individual than the control individual, estimates of treatment effect based on this matching will tend to be biased, since $U$ induces systematic differences between paired individuals, even after matching.
+However, panels D-F in Figure 5 show the same matches in the *true* assignment-control space, in which $\phi$ and $\Psi$ are known to depend on the unobserved confounder, $U$.  In each matching, pairs tend to differ from each other due to baseline variations in the unobserved confounder which were not accounted for in the matching process.  The contrast between Figures 5C and 5F most cleanly illustrate how failing to account for $U$ results in systematic error: in the true assignment-control space, one matched individual in each pair tends to have both higher prognostic score and higher propensity score than its partner. Since this individual is more often the treated individual than the control individual, estimates of treatment effect based on this matching will tend to be biased, since $U$ induces systematic differences between paired individuals, even after matching.
 
 
 ```{r}
@@ -640,7 +640,7 @@ mahal_caliper_dist <- addcaliper(mahal_caliper_dist, z = oracle_df$t, p = oracle
 m_caliper_match <- pairmatch(mahal_caliper_dist, controls = k, df)
 ```
 
-```{r,  fig.width=8, fig.height= 6}
+```{r,  fig.width=8, fig.height= 6, fig.cap="Assignment-control plots for three matching schemes on a dataset with unobserved confounding.  A-C depict the assignment-control space as ascertained without knowledge of the unobserved confounder.  D-F depict the true assignment-control space and the true match distances."}
 naive_df <- df %>%
   mutate(mu = mu - nu * U)
 
@@ -657,6 +657,6 @@ ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
 
 # Conclusion
 
-A modern shift towards an emphasis on large, passively collected datasets presents a host of challenges and opportunities for researchers interested in causality.  As we collect wider datasets with more measured covariates, it will be increasingly important to prioritize the baseline variation that is most important to the causal question - leveraging measured covariates which are useful, and ignoring measured covariates which are uninformative. The complementary tools of the propensity and prognostic scores are well-suited to aid in this endeavor because they summarize two important aspects of baseline variation in the measured covariates: variation associated with the assignment mechanism, and variation associated with the potential outcomes.  However, they are not the only important sources of variation in a dataset.  Other study designs may depend on an instrumental variable, a forcing variable for regression discontinuity, a summary of baseline variation associated with treatment effect heterogeneity, or compliance information in an encouragement design.  Assignment-control plots and variations thereof can be thought of as dimensionality reduction tools in that they digest a possibly very large covariate space into a meaningful reduced space that is easier to use and understand.  While the possible variations on this concept are numerous, they are fundamentally driven by the same concept: a principled understanding of the different types of baseline variation and their differing significances to a causal question can enable researchers to improve the design of causal inference studies and interrogate their assumptions about the data.
+A modern shift towards an emphasis on large, passively collected datasets presents a host of challenges and opportunities for researchers interested in causality.  As we collect wider datasets with more measured covariates, it will be increasingly important to prioritize the baseline variation that is most important to the causal question - correctly leveraging measured covariates which are useful, and ignoring measured covariates which are uninformative. The complementary tools of the propensity and prognostic scores are well-suited to aid in this endeavor because they summarize two important aspects of baseline variation in the measured covariates: variation associated with the assignment mechanism, and variation associated with the potential outcomes.  However, they are not the only important sources of variation in a causal inference study.  Other study designs may depend on an instrumental variable, a forcing variable for regression discontinuity, a summary of baseline variation associated with treatment effect heterogeneity, or compliance information in an encouragement design.  Assignment-control plots and variations thereof can be thought of as dimensionality reduction tools in that they digest a possibly very large covariate space into a meaningful reduced space that is easier to use and understand.  While the possible variations on this concept are numerous, they are fundamentally driven by the same concept: a principled understanding of the different types of baseline variation and their differing significances to a causal question can enable researchers to improve the design of causal inference studies and interrogate their assumptions about the data.
 
 # References
