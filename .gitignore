@@ -2,3 +2,4 @@
 data/*
 analyses/*_cache
 analyses/*files
+.Rhistory
