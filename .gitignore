@@ -1,1 +1,4 @@
 .Rproj.user
+data/*
+analyses/*_cache
+analyses/*files
