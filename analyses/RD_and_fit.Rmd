@@ -1,0 +1,119 @@
+---
+title: "RD plots and Estimating Fit"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "12/4/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+## Control plots with a Forcing Variable for Regression Discontinuity Designs.
+
+[comment]: <> (Just sharp regression discontinuity for now)
+
+I'm struggling with this. What could this plot be used for?  Maaaybe checking the continuity assumption?  One would hope that the prognostic score varies smoothly across the threshold for the forcing variable - but even if that were true it doesn't guarantee the continuity assumption, and when would it not be true? 
+
+Mike, any ideas?  Maybe this just isn't interesting.  Maybe fuzzy RD is a better place to look?
+
+```{r}
+FC_plot <- function(data) {
+    plt_data <- data %>%
+    mutate(t = as.factor(abs(1-t))) %>%
+    dplyr::select(c(t, prog, X1))
+  
+  plt <- ggplot(data = plt_data, aes( x = X1, y = prog, group = t, color = t)) + 
+    geom_point(size = 1, aes(alpha = 0.9)) +
+    scale_color_brewer(palette="Set1") +
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9)) +
+    ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+    xlab("Forcing Variable")
+  
+  return(plt)
+}
+
+RD_plot <- function(data) {
+    plt_data <- data %>%
+    mutate(t = as.factor(abs(1-t))) %>%
+    dplyr::select(c(t, y, X1))
+  
+  plt <- ggplot(data = plt_data, aes( x = X1, y = y, group = t, color = t)) + 
+    geom_point(size = 1, aes(alpha = 0.8)) +
+    scale_color_brewer(palette="Set1") +
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9)) +
+    ylab("Observed Outcome") +
+    xlab("Forcing Variable")
+  
+  return(plt)
+}
+```
+
+
+```{r fig.cap="Diagnostic plots for a sharp regression discontinuity study. Red points represent treated subjects, blue points represent control. (A) a force-control plot, depicting each observational unit in terms of it's prognostic score and a forcing variable (B) a traditional regression discontinuity plot depicting the relationship between the outcome and the forcing variable"}
+rho <- 0.9
+df <- generate_rd_data(rho = rho, sigma = 0.25)
+
+a <- FC_plot(df)
+
+b <- RD_plot(df)
+
+ggarrange(a, b, ncol = 2, nrow = 1, labels = "AUTO")
+```
+
+
+[comment]: <> (## Estimating the Score Models)
+
+[comment]: <> (This visualization doesn't actually make sense.  To make this better I would have to empirically fit a propensity and prognostic model, do the three matches and visualize them in the estimated score space, and then compare that to the true score space.)
+
+```{r, eval = F}
+# like prognostic match except returns data frame and match assignments, not just the
+# reformatted dataframe of outcomes by match assignment
+caliper_match_assignment <- function(df, propensity, match_assignment, prog_model, n_control) {
+  df$m <- match_assignment
+  df$row <- 1:nrow(df)
+  n_t<- sum(df$t)
+
+  selected <- df %>% 
+    filter(!is.na(m)) %>%
+    filter(t==0) %>%
+    group_by(m) %>%
+    sample_n(size = 1)
+  
+  prognostic <- lm(prog_model, data = selected)
+  not_selected <- df[-selected$row, ]
+  not_selected <- not_selected %>% 
+			mutate(progscore = predict(prognostic, not_selected)) %>%
+			mutate(propscore = predict(propensity, not_selected))
+  
+  mahal_dist <- match_on(prop_model, method = "mahalanobis", data = not_selected)
+  mahal_caliper_dist <- addcaliper(mahal_dist, z = not_selected$t, p = not_selected$propscore, caliper = 0.1)
+  m_caliper_match <- pairmatch(mahal_caliper_dist, controls = k, not_selected) 
+  return(list(df = not_selected, match = m_caliper_match, k = n_control))
+}
+```
+
+```{r, eval = F}
+# Build scores empirically for propensity and prognostic match
+
+# build propensity score
+propensity <- glm(prop_model, family = binomial(), data = df)
+  
+prop_match <- pairmatch(propensity, controls = k, df)
+  
+# 1:2 mahalanobis matching to select data to use for prognostic model
+mahal_match <- pairmatch(mahal_dist, controls = 2, df) 
+  
+caliper_match_assignment <- caliper_match_assignment(df, propensity, mahal_match, prog_model, k)
+```
+
+```{r, fig.width=8.2, fig.height= 3, eval = F}
+a <- match_viz(df, m_match, rho, title = "Mahalanobis Match")
+b <- match_viz(df, prop_match, rho, title = "Estimated Propensity Match")
+c <- match_viz(buff_match_assignment$df, buff_match_assignment$match, rho, title = "Estimated Propensity x Prognosis Match")
+
+ggarrange(a,b,c, ncol= 3, labels = "AUTO" )
+```
+
