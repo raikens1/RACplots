@@ -6,7 +6,12 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache=TRUE, warning = FALSE, message = FALSE, echo = FALSE, fig.align = "center")
+library(RACplots)
+library(tidyverse)
+library(ggpubr)
+library(optmatch)
+library(DOS2)
 ```
 
 ## R Markdown
@@ -64,11 +69,11 @@ ggarrange(a, b, ncol = 2, nrow = 1, labels = "AUTO")
 ```
 
 
-[comment]: <> (## Estimating the Score Models)
+## Estimating the Score Models
 
 [comment]: <> (This visualization doesn't actually make sense.  To make this better I would have to empirically fit a propensity and prognostic model, do the three matches and visualize them in the estimated score space, and then compare that to the true score space.)
 
-```{r, eval = F}
+```{r}
 # like prognostic match except returns data frame and match assignments, not just the
 # reformatted dataframe of outcomes by match assignment
 caliper_match_assignment <- function(df, propensity, match_assignment, prog_model, n_control) {
@@ -95,8 +100,17 @@ caliper_match_assignment <- function(df, propensity, match_assignment, prog_mode
 }
 ```
 
-```{r, eval = F}
-# Build scores empirically for propensity and prognostic match
+```{r}
+rho <- 0.5
+#simulate data
+df <- generate_data(N = 2000, p = 10, true_mu = "X1/3-3", rho = rho, sigma = 1)
+k = 1
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+
+# mahalanobis match
+mahal_dist <- DOS2::smahal(df$t, df[,1:10])
+m_match <- pairmatch(mahal_dist, controls = k, df)
 
 # build propensity score
 propensity <- glm(prop_model, family = binomial(), data = df)
@@ -106,13 +120,56 @@ prop_match <- pairmatch(propensity, controls = k, df)
 # 1:2 mahalanobis matching to select data to use for prognostic model
 mahal_match <- pairmatch(mahal_dist, controls = 2, df) 
   
-caliper_match_assignment <- caliper_match_assignment(df, propensity, mahal_match, prog_model, k)
+caliper_match <- caliper_match_assignment(df, propensity, mahal_match, prog_model, k)
 ```
 
-```{r, fig.width=8.2, fig.height= 3, eval = F}
+```{r}
+match_viz <- function(data, match, rho, k = 1, title = "Matching"){
+  plt_data <- data %>% 
+    mutate(m = match) %>%
+    mutate(a = ifelse (is.na(m), 0.9, 1)) %>% 
+    mutate(prog = rho*X1 + sqrt(1-rho^2)*X2, 
+           prop = mu,
+           t = as.factor(abs(1-t))) %>%
+    dplyr::select(c(t, prog, prop, m, a))
+  
+  m_data <- plt_data %>% 
+    filter(!is.na(m)) %>%
+    arrange(m, desc(t)) %>% 
+    mutate(id = rep(1:(k + 1), sum(data$t))) %>%
+    dplyr::select(-c(t, a)) %>%
+    group_by(m) %>%
+    summarize(prop1 = first(prop), prop2 = last(prop),
+              prog1 = first(prog), prog2 = last(prog)) %>%
+    dplyr::select(prog1, prog2, prop1, prop2)
+  
+  plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) + 
+    geom_point(aes(alpha = a), size = 1)+
+    scale_color_brewer(palette="Set1") +
+    geom_segment(data = m_data, 
+                 aes(x = prop1, y = prog1,
+                     xend = prop2, yend = prog2),
+                 color =  "black", group = NA, linetype = "dashed") +
+    ggtitle( title)+
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
+    ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+    xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+  
+  return(plt)
+}
+```
+
+
+```{r, fig.width=8.2, fig.height= 3}
 a <- match_viz(df, m_match, rho, title = "Mahalanobis Match")
 b <- match_viz(df, prop_match, rho, title = "Estimated Propensity Match")
-c <- match_viz(buff_match_assignment$df, buff_match_assignment$match, rho, title = "Estimated Propensity x Prognosis Match")
+c <- match_viz(caliper_match$df, caliper_match$match, rho, title = "Estimated Propensity x Prognosis Match")
+
+ggarrange(a,b,c, ncol= 3, labels = "AUTO" )
+
+a <- match_viz(df, m_match, rho, title = "Mahalanobis Match")
+b <- match_viz(df, prop_match, rho, title = "Estimated Propensity Match")
+c <- match_viz(caliper_match$df, caliper_match$match, rho, title = "Estimated Propensity x Prognosis Match")
 
 ggarrange(a,b,c, ncol= 3, labels = "AUTO" )
 ```

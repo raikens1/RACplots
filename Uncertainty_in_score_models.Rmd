@@ -1,0 +1,302 @@
+---
+title: "Uncertainty in the Assignment-Control space"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "1/15/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, warning = FALSE, message = FALSE, echo = FALSE, fig.align = "center")
+library(RACplots)
+library(tidyverse)
+library(ggpubr)
+library(optmatch)
+library(DOS2)
+
+theme_set(theme_light())
+```
+
+# Uncertainty in score models
+
+It's important to remember that when we visualize an assignment-control plot, the coordinates of each point are estimated quantities.  How do we appropriately address uncertainty in our score models when we use assignment-control plots or match in the assignment-control space?
+
+```{r}
+# like prognostic match except returns data frame and match assignments, not just the
+# reformatted dataframe of outcomes by match assignment
+caliper_match_assignment <- function(df, propensity, match_assignment, prog_model, n_control) {
+  df$m <- match_assignment
+  df$row <- 1:nrow(df)
+  n_t<- sum(df$t)
+
+  selected <- df %>% 
+    filter(!is.na(m)) %>%
+    filter(t==0) %>%
+    group_by(m) %>%
+    sample_n(size = 1)
+  
+  prognostic <- lm(prog_model, data = selected)
+  not_selected <- df[-selected$row, ]
+  not_selected <- not_selected %>% 
+			mutate(prog = predict(prognostic, not_selected)) %>%
+			mutate(prop = predict(propensity, not_selected))
+  
+  mahal_dist <- match_on(formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10),
+                         method = "mahalanobis", data = not_selected)
+  mahal_caliper_dist <- addcaliper(mahal_dist, z = not_selected$t, p = not_selected$prop, caliper = 0.1)
+  mahal_caliper_dist <- addcaliper(mahal_caliper_dist, z = not_selected$t, p = not_selected$prog, caliper = 0.1)
+  m_caliper_match <- pairmatch(mahal_caliper_dist, controls = k, not_selected) 
+  return(list(df = not_selected, match = m_caliper_match, k = n_control, prognostic = prognostic))
+}
+
+# splits and fits
+split_n_fit <- function(df, propensity, match_assignment, prog_model) {
+  df$m <- match_assignment
+  df$row <- 1:nrow(df)
+  n_t<- sum(df$t)
+
+  selected <- df %>% 
+    filter(!is.na(m)) %>%
+    filter(t==0) %>%
+    group_by(m) %>%
+    sample_n(size = 1)
+  
+  prognostic <- lm(prog_model, data = selected)
+  not_selected <- df[-selected$row, ]
+  not_selected <- not_selected %>% 
+			mutate(prog = predict(prognostic, not_selected)) %>%
+			mutate(prop = predict(propensity, not_selected))
+  
+  return(not_selected)
+}
+```
+
+## Illustration: Comparing estimated and actual scores
+
+As an illustration, the following plot shows the locations of a subset of indiviuals in assignment-control space. Opaque points show the true location of each observation, while translucent points show the estimated location of each observation based on fitted score models. The actual and estimated locations of each observation are connected by a dotted line.  
+
+
+```{r}
+rho <- 0.5
+#simulate data
+df <- generate_data(N = 2000, p = 10, true_mu = "X1/3-2", rho = rho, sigma = 1)
+
+k = 1
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+
+# mahalanobis match
+mahal_dist <- DOS2::smahal(df$t, df[,1:10])
+m_match <- pairmatch(mahal_dist, controls = k, df)
+
+# build propensity score
+propensity <- glm(prop_model, family = binomial(), data = df)
+  
+# 1:2 mahalanobis matching to select data to use for prognostic model
+mahal_match <- pairmatch(mahal_dist, controls = 2, df) 
+
+actual <- split_n_fit(df, propensity, mahal_match, prog_model)
+
+oracle <- actual %>%
+  mutate(prog = rho * X1 + sqrt(1 - rho ^ 2) * X2,
+         prop = X1/3-2)
+
+long_df <- rbind(actual, oracle) %>%
+  mutate(type = rep(c("Estimated", "Oracle"), each = dim(actual)[1]), 
+         t = as.factor(t))
+
+subsample <- actual %>%
+  group_by(t) %>%
+  sample_frac(0.05) %>%
+  pull(row)
+
+pairs_data <- actual %>%
+  mutate(prog_oracle = rho * X1 + sqrt(1 - rho ^ 2) * X2,
+         prop_oracle = X1/3-2) %>%
+  filter(row %in% subsample) %>%
+  mutate(t = as.factor(t))
+
+a <- long_df %>%
+  filter(row %in% subsample) %>%
+ggplot( aes( x = prop, y = prog, color = t)) + 
+  geom_point(size = 1, aes(alpha = type)) +
+  theme( aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9)) +
+  geom_segment(data = pairs_data, 
+                 aes(x = prop, y = prog,
+                     xend = prop_oracle, yend = prog_oracle), color = "black", linetype = "dashed", alpha = 0.2) +
+  scale_color_brewer(palette = "Set1", direction = -1)+
+  scale_alpha_manual(values = c(0.3, 1)) + 
+  ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+  xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+
+b <- long_df %>%
+  filter(row %in% subsample) %>%
+ggplot( aes( x = prop, y = prog, color = t)) + 
+  geom_point(size = 1, aes(alpha = type)) +
+  theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9)) +
+  scale_color_brewer(palette = "Set1", direction = -1)+
+  scale_alpha_manual(values = c(0.4, 1)) + 
+  ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+  xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+
+a
+```
+
+\pagebreak
+
+## What uncertainty?
+
+Before we get started it's important to address what we even mean by uncertainty.  This is a more nuanced point than one might expect! Much of the matching literature calculates variance in the causal effect conditional on the matched pairs -- the only thing that is considered "random" is the treatment assignments within matched subsets.  This is to say, the traditional matching framework doesn't deal with any variability associated with sampling or match selection.  So, what does uncertainty even mean before we've matched?
+
+A common way to proceed might be to say that what we mean by "addressing uncertainty" is really accounting for sampling variability. This is a little weird because once the data set is matched, we will immediately forget everything we supposed about sampling variability. Pressing forward nonetheless, we could suppose that our dataset is a sample from some superpopulation, and we estimate imperfect score models because we are only able to look at a sample, not a superpopulation. We might then try and obtain parametric or bootstrap confidence intervals about our model parameters.  It is important to note that the _confidence intervals_ about the fitted values describe the estimates we care about, not the _prediction intervals_.  In this case, we only care about the model surface (i.e. the expected value conditional on the observed covariates), _not_ the standard errors about the model surface that a good data scientist would consider when predicting for future data points.
+
+Even when we restrict our discussion to sampling variability, estimating sampling variability in the prognostic score is not so simple.  The prognostic score is fit on the pilot set, which is a subset of the full sample.  We'd need a framework for talking about variability for using this two-tiered sampling process. Unfortunately (but also interestingly?) the typical nonparamertic bootstrap approach for this problem will probably behave in unpredictable ways. Since the pilot set is itself selected using a 1:2 Mahalanobis distance matching process, the identical observations that inevitably result from bootstrapping with replacement will probably be matched to themselves, possibly resulting in strange statistical behavior.  In this case, a semiparametric or parametric approach might be useful, although even semiparametric bootstrapping might fall prey to the same problem depending on the smoothing parameters used (???).
+
+\pagebreak
+
+## Confidence "Stars"
+
+The plots below give a rough illustration of what uncertainty intervals might look like in an assignment control space. Panel A shows the locations of the points, and panel B shows each point with vertical and horizontal confidence bars. To avoid overplotting, only a subset of the data is shown.  The confidence intervals are the usual parametric intervals from the propensity and prognostic models.  This isn't perfect of course because parametric confidence intervals are not necessarily desirable and the parametric intervals and the parametric prognostic score intervals don't necessarily deal with the nuances of sampling variability described above.  Also, of course, an aggregation of 95% confidence intervals doesn't necessarily retain it's statistical meaning when interpreted together.
+
+```{r}
+rho <- 0.5
+#simulate data
+df <- generate_data(N = 5000, p = 10, true_mu = "X1/3-2", rho = rho, sigma = 1)
+k = 1
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+
+# mahalanobis match
+mahal_dist <- DOS2::smahal(df$t, df[,1:10])
+m_match <- pairmatch(mahal_dist, controls = k, df)
+
+# build propensity score
+propensity <- glm(prop_model, family = binomial(), data = df)
+  
+prop_match <- pairmatch(propensity, controls = k, df)
+  
+# 1:2 mahalanobis matching to select data to use for prognostic model
+mahal_match <- pairmatch(mahal_dist, controls = 2, df) 
+  
+caliper_match <- caliper_match_assignment(df, propensity, mahal_match, prog_model, k)
+prognostic <- caliper_match$prognostic
+```
+
+```{r}
+AC_plot2 <- function(data, title = "", shaded = 0){
+  plt_data <- data %>%
+    mutate(t = as.factor(t), a = as.factor(t == shaded)) %>%
+    dplyr::select(c(t, prog, prop, a))
+  
+  plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) + 
+    geom_point(size = 1, aes(alpha = a)) +
+    scale_alpha_manual(values = c(0.5, 1)) +
+    scale_color_brewer(palette="Set1", direction = -1) +
+    ggtitle(title) +
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
+    ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+    xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+  
+  return(plt)
+}
+
+AC_plot_uncertainty <- function(data, title = "", shaded = 0){
+  plt_data <- data %>%
+    mutate(t = as.factor(t), a = as.factor(t == shaded)) %>%
+    dplyr::select(c(t, prog, prop, a, prog_lwr, prog_upr, prop_lwr, prop_upr))
+  
+  plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) + 
+    geom_point(size = 1, aes(alpha = a)) +
+    scale_color_brewer(palette="Set1", direction = -1) +
+    ggtitle(title) +
+    scale_alpha_manual(values = c(0.5, 0.5)) +
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
+    ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+    xlab(expression(paste("Propensity, ", phi, "(x)", sep = ""))) +
+    geom_errorbar(aes(ymin=prog_lwr, ymax=prog_upr, alpha = a), width = 0) +
+    geom_errorbarh(aes(xmin=prop_lwr, xmax=prop_upr, alpha = a), height = 0)
+  
+  return(plt)
+}
+```
+
+```{r}
+a_set <- caliper_match$df
+
+prog_intervals <- predict(caliper_match$prognostic, a_set, interval = "confidence")
+prop_intervals <- predict(propensity, a_set, se.fit = T)
+a_set <- a_set %>%
+  mutate(prog = prog_intervals[,1],
+         prog_lwr = prog_intervals[,2],
+         prog_upr = prog_intervals[,3],
+         prop = prop_intervals[[1]]) %>%
+  mutate(prop_lwr = prop - prop_intervals[[2]],
+         prop_upr = prop + prop_intervals[[2]])
+
+a_set_subsample <- a_set %>%
+  group_by(t) %>%
+  sample_frac(0.02)
+  
+a <- AC_plot_uncertainty(a_set_subsample)
+b <- AC_plot2(a_set_subsample)
+
+ggarrange(b, a, nrow = 1, ncol = 2, labels = "AUTO")
+```
+
+Panel B is a little bit hard to read, even though it only shows a subset of the data. However, there are some important ideas we can take away from this illustration.
+
+* Confidence intervals in general can be a useful reminder that the points in an assignment-control plot are not estimated with uncertainty
+
+* The relative sizes of the horizontal and vertical confidence intervals may convey the relative amounts of uncertainty in the prognostic and propensity dimension
+
+* The sizes of the confidence intervals compared to the spread of the points can convey how well we understand the shape of the data.  Are the things we see as outliers certainly outliers?  How well do we understand apparent correllations and overlap?
+
+### Other Examples
+
+```{r}
+rho <- 0.5
+#simulate data
+df <- generate_data(N = 1000, p = 10, true_mu = "X1/3-2", rho = rho, sigma = 1)
+k = 1
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+
+# mahalanobis match
+mahal_dist <- DOS2::smahal(df$t, df[,1:10])
+m_match <- pairmatch(mahal_dist, controls = k, df)
+
+# build propensity score
+propensity <- glm(prop_model, family = binomial(), data = df)
+  
+prop_match <- pairmatch(propensity, controls = k, df)
+  
+# 1:2 mahalanobis matching to select data to use for prognostic model
+mahal_match <- pairmatch(mahal_dist, controls = 2, df) 
+  
+caliper_match <- caliper_match_assignment(df, propensity, mahal_match, prog_model, k)
+prognostic <- caliper_match$prognostic
+```
+
+
+```{r}
+a_set <- caliper_match$df
+
+prog_intervals <- predict(caliper_match$prognostic, a_set, interval = "confidence")
+prop_intervals <- predict(propensity, a_set, se.fit = T)
+a_set <- a_set %>%
+  mutate(prog = prog_intervals[,1],
+         prog_lwr = prog_intervals[,2],
+         prog_upr = prog_intervals[,3],
+         prop = prop_intervals[[1]]) %>%
+  mutate(prop_lwr = prop - prop_intervals[[2]],
+         prop_upr = prop + prop_intervals[[2]])
+
+a_set_subsample <- a_set %>%
+  group_by(t) %>%
+  sample_frac(0.1)
+  
+a <- AC_plot_uncertainty(a_set_subsample)
+b <- AC_plot2(a_set_subsample)
+
+ggarrange(b, a, nrow = 1, ncol = 2, labels = "AUTO")
+```
+

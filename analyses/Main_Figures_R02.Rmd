@@ -12,8 +12,7 @@ knitr::opts_chunk$set(cache=TRUE, warning = FALSE, message = FALSE, echo = FALSE
 library(RACplots)
 library(optmatch)
 library(DOS2)
-library(dplyr)
-library(ggplot2)
+library(tidyverse)
 library(ggpubr)
 
 theme_set(theme_light())
@@ -60,7 +59,7 @@ The results that follow depict several simulated datasets.  The primary generati
 \begin{align*}
 X_i &\sim Normal(0, I_{10}) \\
 T_i &\sim Bernoulli\left(\frac{1}{1 + exp(\phi(X_i))}\right) \\
-Y_i(0) &= \tau \Psi(X_i) + \epsilon_i \\
+Y_i(0) &= \Psi(X_i) + \epsilon_i \\
 \epsilon_i &\sim N(0, 1) 
 \end{align*}
 
@@ -177,6 +176,11 @@ f <- overlap_histogram(data = df_prog_overlap_bad)
 ggarrange(a, b, c, d, e, f, ncol= 3, nrow = 2, heights = c(3, 2), labels = "AUTO")
 ```
 
+```{r}
+pdf("figures/Figure1.pdf",  width=8, height=5)
+ggarrange(a, b, c, d, e, f, ncol= 3, nrow = 2, heights = c(3, 2), labels = "AUTO")
+dev.off()
+```
 
 Figure 1 shows example assignment-control plots (A-C) and propensity score density histograms (D-F) for three simulated observational datasets. It is worth noting that the propensity score histogram for any dataset simply shows the marginal distribution of the data clouds shown in any assignment control plot. Panels A and D in Figure 1 depict the assignment-control plots and propensity histograms for a favorable observational dataset. There is substantial overlap between the treated and control subjects both in terms of their propensity for treatment and their likely outcome under the control assignment.  The correllation between treatment and prognosis is low.  A researcher viewing these diagnostic plots might be quite satisfied proceeding with their study.
 
@@ -218,6 +222,12 @@ d <- match_viz(df, m_jointcaliper_match, rho, title = "Mahalanobis Match,\nJoint
 ggarrange(a, b, c, d, ncol= 2, nrow = 2, labels = "AUTO" )
 ```
 
+
+```{r}
+pdf("figures/Figure2.pdf",  width=6, height=6)
+ggarrange(a, b, c, d, ncol= 2, nrow = 2, labels = "AUTO" )
+dev.off()
+```
 ## Assignment-Control Plots and Matching
 
 Assignment-Control Plots can also be a useful diagnostic tool for matching studies.  The four panels in figure 2 show the assignment-control visualizations of four different 1-to-1 matching schemes on the same data set: Mahalanobis distance (A), propensity score (B), Mahalanobis distance with a propensity score caliper (C), and Mahalanobis distance with both a propensity score caliper and a pronostic score caliper (D).  
@@ -297,15 +307,17 @@ RA_plot <- function(data, title = ""){
 ```
 
 ```{r}
-df <- generate_data(N = 2000, p = 10, true_mu = "X1/3 + X3/3 - 3", rho = rho) %>%
-  mutate(IV = X3/3,
-         prop = X1/3 - 3,
+df <- generate_data(N = 2000, p = 10, true_mu = "X1/2 + X3/2 - 3.25", rho = rho) %>%
+  mutate(IV = X3/2,
+         prop = X1/2 - 3.25,
          prog = rho * X1 + sqrt(1-rho^2) * X2)
 ```
 
 ```{r}
 # assumes prog and prop already specified
-AC_match_plot <- function(data, match, k = 1, title = "Matching"){
+AC_match_plot <- function(data, match, k = 1, title = ""){
+  n_pairs <- sum(!is.na(match))/(k + 1)
+  
   plt_data <- data %>% 
     mutate(m = match) %>%
     mutate(a = ifelse (is.na(m), 0.9, 1), 
@@ -315,7 +327,7 @@ AC_match_plot <- function(data, match, k = 1, title = "Matching"){
   m_data <- plt_data %>% 
     filter(!is.na(m)) %>%
     arrange(m, desc(t)) %>% 
-    mutate(id = rep(1:(k + 1), sum(data$t))) %>%
+    mutate(id = rep(1:(k + 1), n_pairs)) %>%
     dplyr::select(-c(t, a)) %>%
     group_by(m) %>%
     summarize(prop1 = first(prop), prop2 = last(prop),
@@ -323,7 +335,7 @@ AC_match_plot <- function(data, match, k = 1, title = "Matching"){
     dplyr::select(prog1, prog2, prop1, prop2)
   
   plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) + 
-    geom_point(aes(alpha = a), size = 1)+
+    geom_point(aes(alpha = a), size = 1) +
     scale_color_brewer(palette="Set1") +
     geom_segment(data = m_data, 
                  aes(x = prop1, y = prog1,
@@ -337,7 +349,9 @@ AC_match_plot <- function(data, match, k = 1, title = "Matching"){
   return(plt)
 }
 
-RC_match_plot <- function(data, match, k = 1, title = "Matching"){
+RC_match_plot <- function(data, match, k = 1, title = ""){
+  n_pairs <- sum(!is.na(match))/(k + 1)
+  
   plt_data <- data %>% 
     mutate(m = match) %>%
     mutate(a = ifelse (is.na(m), 0.9, 1), 
@@ -347,7 +361,7 @@ RC_match_plot <- function(data, match, k = 1, title = "Matching"){
   m_data <- plt_data %>% 
     filter(!is.na(m)) %>%
     arrange(m, desc(t)) %>% 
-    mutate(id = rep(1:(k + 1), sum(data$t))) %>%
+    mutate(id = rep(1:(k + 1), n_pairs)) %>%
     dplyr::select(-c(t, a)) %>%
     group_by(m) %>%
     summarize(IV1 = first(IV), IV2 = last(IV),
@@ -370,7 +384,9 @@ RC_match_plot <- function(data, match, k = 1, title = "Matching"){
 }
 
 
-RA_match_plot <- function(data, match, k = 1, title = "Matching"){
+RA_match_plot <- function(data, match, k = 1, title = ""){
+  n_pairs <- sum(!is.na(match))/(k + 1)
+  
   plt_data <- data %>% 
     mutate(m = match) %>%
     mutate(a = ifelse (is.na(m), 0.9, 1), 
@@ -380,7 +396,7 @@ RA_match_plot <- function(data, match, k = 1, title = "Matching"){
   m_data <- plt_data %>% 
     filter(!is.na(m)) %>%
     arrange(m, desc(t)) %>% 
-    mutate(id = rep(1:(k + 1), sum(data$t))) %>%
+    mutate(id = rep(1:(k + 1), n_pairs)) %>%
     dplyr::select(-c(t, a)) %>%
     group_by(m) %>%
     summarize(IV1 = first(IV), IV2 = last(IV),
@@ -403,7 +419,7 @@ RA_match_plot <- function(data, match, k = 1, title = "Matching"){
 }
 ```
 
-```{r, fig.width=8, fig.height=3, fig.cap="Randomization-Assignment-Control plots.  Each panel depicts a different 2-D projection of the same dataset within the randomization-assignment-control space.  Red points represent treated observations, blue points represent control.  Dotted lines connect matched individuals. The matches depicted are produced by Mahalanobis distance matching on all variables except the IV with propensity score and prognostic score calipers."}
+```{r, fig.width=8, fig.height=3, eval = F, fig.cap="Randomization-Assignment-Control plots.  Each panel depicts a different 2-D projection of the same dataset within the randomization-assignment-control space.  Red points represent treated observations, blue points represent control.  Dotted lines connect matched individuals. The matches depicted are produced by Mahalanobis distance matching on all variables except the IV with propensity score and prognostic score calipers."}
 prop_model = formula(t ~ . - mu - y)
 
 # mahalanobis match
@@ -422,128 +438,137 @@ ggarrange(a, b, c, ncol = 3, nrow =1, labels = "AUTO")
 ```
 
 A final observation to note is that the propensity and prognosis scores are correllated, but the IV is uncorrellated with either of the other two scores (Figure 3).  This is actually not only expected but important: the propensity score *should* summarize variation correllated with the expected potential outcome, and the IV should be uncorrellated with the expected potential outcome in order to be an IV.  Thus, we hope to expect to see correllation in the $\tilde{\phi} \times \Psi$ space, but not in $IV \times \Psi$, and $IV \times \tilde{\phi}$.
+```{r}
+reformat_nf <- function(nf, N){
+  m_nf <- dim(nf$match[1])
 
-```{r nearfar matching, eval = F}
-# I don't think I understand how this works well enough to implement it right now.
-nf <- opt_nearfar(dta = df, trt = "t", covs = "X1", iv = "X3",
-                  trt.type = "bin", adjust.IV = TRUE, max.time.seconds = 600)
-nf$match %>%
-  mutate(id = paste("1", ))
+  nf_reformatted <- nf$match %>%
+    as_tibble() %>%
+    mutate(match_id = paste("1.", 1:nrow(.), sep = "")) %>%
+    gather("name", "index", -match_id) 
 
-AC_match_plot(data = df, match = m_caliper_match)
-RC_match_plot(data = df, match = m_caliper_match)
-RA_match_plot(data = df, match = m_caliper_match)
+  match <- tibble(index = 1:N) %>%
+    left_join(nf_reformatted) %>%
+    pull(match_id)
+  
+  names(match) <- 1:N
+  
+  return(match)
+}
 ```
-
-## Control plots with a Forcing Variable for Regression Discontinuity Designs.
-
-[comment]: <> (Just sharp regression discontinuity for now)
-
-I'm struggling with this. What could this plot be used for?  Maaaybe checking the continuity assumption?  One would hope that the prognostic score varies smoothly across the threshold for the forcing variable - but even if that were true it doesn't guarantee the continuity assumption, and when would it not be true? 
-
-Mike, any ideas?  Maybe this just isn't interesting.  Maybe fuzzy RD is a better place to look?
 
 ```{r}
-FC_plot <- function(data) {
-    plt_data <- data %>%
-    mutate(t = as.factor(abs(1-t))) %>%
-    dplyr::select(c(t, prog, X1))
+set.seed(125)
+df <- generate_data(N = 1000, p = 10, true_mu = "X1/2 + X3/2 - 3", rho = rho) %>%
+  mutate(IV = X3/2,
+         prop = X1/2 - 3,
+         prog = rho * X1 + sqrt(1-rho^2) * X2)
+```
+
+
+```{r nearfar matching}
+library(nearfar)
+set.seed(123)
+IVrange <- range(df$X3)[2] - range(df$X3)[1]
+
+
+nf <- opt_nearfar(dta = df, trt = "t", covs = c("X1", "X2"), iv = "X3",
+                  trt.type = "bin", adjust.IV = TRUE, cutp.range = c(sd(df$X3)*1.5, IVrange),
+                  max.time.seconds = 600)
+```
+
+```{r}
+# like a match plot but no lines; just shows included data
+AC_filter_plot <- function(data, match, k = 1, title = ""){
+  n_pairs <- sum(!is.na(match))/(k + 1)
   
-  plt <- ggplot(data = plt_data, aes( x = X1, y = prog, group = t, color = t)) + 
-    geom_point(size = 1, aes(alpha = 0.9)) +
+  plt_data <- data %>% 
+    mutate(m = match) %>%
+    mutate(a = ifelse (is.na(m), 0.9, 1), 
+           t = as.factor(abs(1-t))) %>% 
+    dplyr::select(c(t, prog, prop, m, a))
+  
+  plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) + 
+    geom_point(aes(alpha = a), size = 1) +
     scale_color_brewer(palette="Set1") +
-    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9)) +
+    ggtitle( title)+
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
-    xlab("Forcing Variable")
+    xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
   
   return(plt)
 }
 
-RD_plot <- function(data) {
-    plt_data <- data %>%
-    mutate(t = as.factor(abs(1-t))) %>%
-    dplyr::select(c(t, y, X1))
+RC_filter_plot <- function(data, match, k = 1, title = ""){
+  n_pairs <- sum(!is.na(match))/(k + 1)
   
-  plt <- ggplot(data = plt_data, aes( x = X1, y = y, group = t, color = t)) + 
-    geom_point(size = 1, aes(alpha = 0.8)) +
+  plt_data <- data %>% 
+    mutate(m = match) %>%
+    mutate(a = ifelse (is.na(m), 0.9, 1), 
+           t = as.factor(abs(1-t))) %>%
+    dplyr::select(c(t, prog, IV, m, a))
+  
+  plt <- ggplot(data = plt_data, aes( x = IV, y = prog, group = t, color = t)) + 
+    geom_point(aes(alpha = as.factor(a)), size = 1)+
     scale_color_brewer(palette="Set1") +
-    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9)) +
-    ylab("Observed Outcome") +
-    xlab("Forcing Variable")
+    ggtitle( title)+
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
+    ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+    xlab(expression(paste("IV", sep = "")))
+  
+  return(plt)
+}
+
+
+RA_filter_plot <- function(data, match, k = 1, title = ""){
+  n_pairs <- sum(!is.na(match))/(k + 1)
+  
+  plt_data <- data %>% 
+    mutate(m = match) %>%
+    mutate(a = ifelse (is.na(m), 0.9, 1), 
+           t = as.factor(abs(1-t))) %>%
+    dplyr::select(c(t, prop, IV, m, a))
+  
+  plt <- ggplot(data = plt_data, aes( x = IV, y = prop, group = t, color = t)) + 
+    geom_point(aes(alpha = a), size = 1)+
+    scale_color_brewer(palette="Set1") +
+    ggtitle( title)+
+    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
+    ylab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+    xlab(expression(paste("IV", sep = "")))
   
   return(plt)
 }
 ```
 
+```{r fig.height=6, fig.width=8}
+nf_match <- reformat_nf(nf, 1000)
 
-```{r fig.cap="Diagnostic plots for a sharp regression discontinuity study. Red points represent treated subjects, blue points represent control. (A) a force-control plot, depicting each observational unit in terms of it's prognostic score and a forcing variable (B) a traditional regression discontinuity plot depicting the relationship between the outcome and the forcing variable"}
-rho <- 0.9
-df <- generate_rd_data(rho = rho, sigma = 0.25)
+m <- sum(is.na(nf_match))/2
+subsample_mids <- paste("1.", sample(1:m, 30), sep = "")
+nf_match_subsample <- ifelse(nf_match %in% subsample_mids, nf_match, NA)
 
-a <- FC_plot(df)
+a <- AC_filter_plot(data = df, match = nf_match)
+b <- RC_filter_plot(data = df, match = nf_match)
+c <- RA_filter_plot(data = df, match = nf_match)
 
-b <- RD_plot(df)
+d <- AC_match_plot(data = df, match = nf_match_subsample)
+e <- RC_match_plot(data = df, match = nf_match_subsample)
+f <- RA_match_plot(data = df, match = nf_match_subsample)
 
-ggarrange(a, b, ncol = 2, nrow = 1, labels = "AUTO")
+ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
 ```
 
 
-[comment]: <> (## Estimating the Score Models)
-
-[comment]: <> (This visualization doesn't actually make sense.  To make this better I would have to empirically fit a propensity and prognostic model, do the three matches and visualize them in the estimated score space, and then compare that to the true score space.)
-
-```{r, eval = F}
-# like prognostic match except returns data frame and match assignments, not just the
-# reformatted dataframe of outcomes by match assignment
-caliper_match_assignment <- function(df, propensity, match_assignment, prog_model, n_control) {
-  df$m <- match_assignment
-  df$row <- 1:nrow(df)
-  n_t<- sum(df$t)
-
-  selected <- df %>% 
-    filter(!is.na(m)) %>%
-    filter(t==0) %>%
-    group_by(m) %>%
-    sample_n(size = 1)
-  
-  prognostic <- lm(prog_model, data = selected)
-  not_selected <- df[-selected$row, ]
-  not_selected <- not_selected %>% 
-			mutate(progscore = predict(prognostic, not_selected)) %>%
-			mutate(propscore = predict(propensity, not_selected))
-  
-  mahal_dist <- match_on(prop_model, method = "mahalanobis", data = not_selected)
-  mahal_caliper_dist <- addcaliper(mahal_dist, z = not_selected$t, p = not_selected$propscore, caliper = 0.1)
-  m_caliper_match <- pairmatch(mahal_caliper_dist, controls = k, not_selected) 
-  return(list(df = not_selected, match = m_caliper_match, k = n_control))
-}
-```
-
-```{r, eval = F}
-# Build scores empirically for propensity and prognostic match
-
-# build propensity score
-propensity <- glm(prop_model, family = binomial(), data = df)
-  
-prop_match <- pairmatch(propensity, controls = k, df)
-  
-# 1:2 mahalanobis matching to select data to use for prognostic model
-mahal_match <- pairmatch(mahal_dist, controls = 2, df) 
-  
-caliper_match_assignment <- caliper_match_assignment(df, propensity, mahal_match, prog_model, k)
-```
-
-```{r, fig.width=8.2, fig.height= 3, eval = F}
-a <- match_viz(df, m_match, rho, title = "Mahalanobis Match")
-b <- match_viz(df, prop_match, rho, title = "Estimated Propensity Match")
-c <- match_viz(buff_match_assignment$df, buff_match_assignment$match, rho, title = "Estimated Propensity x Prognosis Match")
-
-ggarrange(a,b,c, ncol= 3, labels = "AUTO" )
+```{r}
+pdf("figures/Figure3.pdf",  width=8, height=6)
+ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
+dev.off()
 ```
 
 ## Assignment-Control Plots and Unmeasured Confounding
 
-While there is a wide and increasing variety of methods which use some articulation of propensity and prognosis to estimate a treatment effect. However, the theorems underlying the use of the propensity score and the theorems underlying the use of the prognostic score both depend on the absense of unmeasured confounding. Violations of this assumption have ramifications for a wide variety of causal inference approaches, and assignment-aontrol plots may be similarly misleading when unmeasured confounding is at play.
+There is a wide and increasing variety of methods which use some articulation of propensity and prognosis to estimate a treatment effect. However, the theorems underlying the use of the propensity score and the theorems underlying the use of the prognostic score both depend on the absense of unmeasured confounding. Violations of this assumption have ramifications for a wide variety of causal inference approaches, and assignment-aontrol plots may be similarly misleading when unmeasured confounding is at play.
 
 Figure 5 illustrates the behavior of assignment control plots in a scenario with unobserved confounding.  We add to our data-generating set-up an unobserved confounder, $U$, such that:
 
@@ -552,7 +577,7 @@ Figure 5 illustrates the behavior of assignment control plots in a scenario with
     \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2} + \eta U.
 \end{align*}
 
-Suppose we somehow ascertained exactly the correct relationships between the two score models and the *observed* covariates, so that our propensity and prognostic models are precisely $\hat{\phi}(X_i) = X_{i1}/c_1 - c_0$ and $\hat{\Psi}(X_i) = \rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}$, respectively.  That is, the score models are exactly correct, except that they do not include the unobserved confounder.  Figure 5 panels A-C depict the assignment control plots we might make and matchings we might produce using these score models, $\hat{\phi}$ and $\hat{\Psi}$.  Since both the assignment-control plots and the matchings use the score models $\hat{\phi}$ and $\hat{\Psi}$ that fail to capture unobserved confounding, our propensity matches appear quite close in $\hat{\phi}$ (Figure 5B) and our mahalanobis distance matchings with propensity and prognostic score calipers appear quite close in the assignment-control space defined by $\hat{\phi} \times \hat{\Psi}$ (Figure 5C).  
+Suppose we somehow ascertained exactly the correct relationships between the two score models and the *observed* covariates, so that our propensity and prognostic models are precisely $\hat{\phi}(X_i) = c_1X_{i1} - c_0$ and $\hat{\Psi}(X_i) = \rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}$, respectively.  That is, the score models are exactly correct, except that they do not include the unobserved confounder.  Figure 5 panels A-C depict the assignment control plots we might make and matchings we might produce using these score models, $\hat{\phi}$ and $\hat{\Psi}$.  Since both the assignment-control plots and the matchings use the score models $\hat{\phi}$ and $\hat{\Psi}$ that fail to capture unobserved confounding, our propensity matches appear quite close in $\hat{\phi}$ (Figure 5B) and our mahalanobis distance matchings with propensity and prognostic score calipers appear quite close in the assignment-control space defined by $\hat{\phi} \times \hat{\Psi}$ (Figure 5C).  
 
 However, panels D-F in Figure 5 show the same matches in the *true* assignment-control space, in which $\phi$ and $\Psi$ are known to depend on the unobserved confounder, $U$.  In each matching, pairs tend to differ from each other due to baseline variations in the unobserved confounder which were not accounted for in the matching process.  The contrast between Figures 5C and 5F most cleanly illustrate how failing to account for $U$ results in systematic error: in the true assignment-control space, one matched individual in each pair tends to have both higher prognostic score and higher propensity score than its partner. Since this individual is more often the treated individual than the control individual, estimates of treatment effect based on this matching will tend to be biased, since $U$ induces systematic differences between paired individuals, even after matching.
 
@@ -655,8 +680,14 @@ f <- match_viz_xSITA(df, m_caliper_match, rho, nu, title = "Mahalanobis Match, J
 ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
 ```
 
+```{r}
+pdf("figures/Figure4.pdf",  width=8, height=6)
+ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
+dev.off()
+```
+
 # Conclusion
 
-A modern shift towards an emphasis on large, passively collected datasets presents a host of challenges and opportunities for researchers interested in causality.  As we collect wider datasets with more measured covariates, it will be increasingly important to prioritize the baseline variation that is most important to the causal question - correctly leveraging measured covariates which are useful, and ignoring measured covariates which are uninformative. The complementary tools of the propensity and prognostic scores are well-suited to aid in this endeavor because they summarize two important aspects of baseline variation in the measured covariates: variation associated with the assignment mechanism, and variation associated with the potential outcomes.  However, they are not the only important sources of variation in a causal inference study.  Other study designs may depend on an instrumental variable, a forcing variable for regression discontinuity, a summary of baseline variation associated with treatment effect heterogeneity, or compliance information in an encouragement design.  Assignment-control plots and variations thereof can be thought of as dimensionality reduction tools in that they digest a possibly very large covariate space into a meaningful reduced space that is easier to use and understand.  While the possible variations on this concept are numerous, they are fundamentally driven by the same concept: a principled understanding of the different types of baseline variation and their differing significances to a causal question can enable researchers to improve the design of causal inference studies and interrogate their assumptions about the data.
+A modern shift towards an emphasis on large, passively collected datasets presents a host of challenges and opportunities for researchers interested in causality.  As we collect wider datasets with more measured covariates, it will be increasingly important to prioritize the baseline variation that is most important to the causal question - correctly leveraging measured covariates which are useful, and ignoring measured covariates which are uninformative. The complementary tools of the propensity and prognostic scores are well-suited to aid in this endeavor because they summarize two important aspects of baseline variation in the measured covariates: variation associated with the assignment mechanism, and variation associated with the potential outcomes. Indeed, the central insight of doubly robust estimation is the joint use of the propensity and prognostic score. However, propensity and prognostic scores are not the only important sources of variation in a causal inference study.  Other study designs may depend on an instrumental variable, a forcing variable for regression discontinuity, a summary of baseline variation associated with treatment effect heterogeneity, or compliance information in an encouragement design.  Assignment-control plots and variations thereof can be thought of as dimensionality reduction tools in that they digest a possibly very large covariate space into a meaningful reduced space that is easier to use and understand.  While the possible variations on this concept are numerous, they are fundamentally driven by the same concept: a principled understanding of the different types of baseline variation and their differing significances to a causal question can enable researchers to improve the design of causal inference studies and interrogate their assumptions about the data.
 
 # References

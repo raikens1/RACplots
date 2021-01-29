@@ -1,0 +1,108 @@
+---
+title: "AC Plots with Discontinuities"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "1/27/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, fig.height = 4, fig.width = 5, fig.align= "center")
+library(RACplots)
+library(tidyverse)
+library(ggpubr)
+library(optmatch)
+library(DOS2)
+
+theme_set(theme_light())
+```
+
+# Introduction
+
+One thing that would be really interesting to us is thinking through cases where the ac plots tell a side of the story that the propensity score histograms do not. We've already thought a little bit about how AC plots might be able to tell you something about match quality or about the correllation of propensity and prognosis.
+
+Are there other examples where the prognostic dimension -- or the 2D relationship between propensity and prognosis -- can give us insights that propensity alone would not? 
+
+# What I'm hung up on: Not all assignment-control plots are possible.
+
+This is what I keep getting hung up on when I try to fabricate assignment-control plots.  You are limited by _more_ than just your ability to imagine data clouds in two dimensions: _not all assignment-control plots are possible_.  In particular, if two points have the same horizontal position (same propensity score), they must have the same probability of treatment, by definition.  In pictures, this means that the red treated individuals _must_ be scattered evenly across horizontal level-sets.
+
+## Example: quadrant-wise treatment assignment.
+
+Let's start with a quadrant-wise example.
+
+Let's suppose we begin with two normally distributed covariates $X_1, X_2 \sim Normal(0,1)$, and let the true prognostic score of each individual be determined by:
+
+$$E[Y | T = 0, X] = X_2.$$
+
+In addition, let the propensity score be determined based on the quadrent the point is in.
+
+$$P(T = 1 | X = x) = 
+\begin{cases}
+   1/2 & \text{if } X_1, X_1 \geq 0 \\
+   1/4 & \text{if } X_1 \geq 0, X2 < 0  \\
+   1/4 & \text{if } X_2 \geq 0, X1 < 0  \\
+   0 & \text{if } X_1, X_2 < 0
+\end{cases}
+    $$
+```{r}
+n <- 1000
+df <- tibble(X1 = rnorm(n), X2 = rnorm(n)) %>%
+  mutate(prog = X2,
+         prop = case_when( 
+           X1 >= 0 & X2 >= 0 ~ 1/2,
+           X1 >= 0 & X2 < 0 ~ 1/4,
+           X2 >= 0 & X1 < 0 ~ 1/4,
+           TRUE ~ 0)) %>%
+  mutate(t = as.factor(rbinom(n, 1, prop)))
+```
+
+```{r}
+ggplot(df, aes(x = X1, y = X2, color = t)) +
+  geom_point(alpha = 0.7) +
+  scale_color_brewer(palette = "Set1", direction = -1)
+```
+
+This is starting to look like what Mike asked for.  But there's a problem.  That's not the assignment-control plot for these data, that's just the plot of $X_1$ by $X_2$.  
+
+The assignment-control plot looks like this:
+
+```{r}
+ggplot(df, aes(x = prop, y = prog, color = t)) +
+  geom_point(alpha = 0.7) +
+  scale_color_brewer(palette = "Set1", direction = -1)
+```
+
+And so here's the problem that I keep getting hung up on.  It's not so simple to fabricate examples of assignment-control plots because not all assignment-control plots are possible. As soon as we point to a quadrant of the AC plot and say "imagine if there were no treated individuals here" _all_ of the points in that quadrant (treated and control) aren't there any more -- their propensity score must be zero, so they all disappear and get smooshed onto the Y axis.
+
+In fact, you can't make an assignment control plot where the probability of assignment to the treatment group is zero in any region besides the y-axis.
+
+\pagebreak
+
+# My best attempt: Prognosis hamburgers
+
+If the propensity score were not continuous, the researcher would notice it just by looking at the propensity score histograms.  What if the prognostic score were not continuous?
+
+As an example, let's suppose $X_1, X_2 \sim Normal(0,1)$, and let $X_3 \sim Bernoulli(0.5)$. Let the true prognostic score of each individual be determined by:
+
+$$E[Y | T = 0, X] = 3X_3 + \frac{1}{3}X_2$$
+For simplicity, let's make the propensity score boring:
+
+$$P(T = 1|X) = \frac{1}{1 + e^{-X_1 + 1}}$$
+
+This generates the following assignment-control plot:
+
+```{r}
+n <- 1000
+df <- tibble(X1 = rnorm(n), X2 = rnorm(n), X3 = rbinom(n, 1, 0.5)) %>%
+  mutate(prog = 3*X3 + X2/3,
+         prop = 1/(1 + exp(-X1 + 1))) %>%
+  mutate(t = as.factor(rbinom(n, 1, prop)))
+```
+
+```{r}
+ggplot(df, aes(x = prop, y = prog, color = t)) +
+  geom_point(alpha = 0.7) +
+  scale_color_brewer(palette = "Set1", direction = -1)
+```
+
+Here, the data pretty clearly separates into two distinct clouds, which you wouldn't be able to notice if you only looked at the propenisity score histograms.  How should the researcher respond if they notice a cloud pattern?  First, the researcher might want to check whether individuals from the different clouds may be different in some important way.  For example, $X_3$ is a potential treatment effect modifier, and the researcher should consider estimating treatment effects separately on each group.  Perhaps individuals from the two groups actually have different propensity and prognostic models altogether, and the models should be estimated on each group separately.  Perhaps the two groups are just prognostically different, but we have reason to believe the treatment effect and score models are the same across the groups.  In that case, the two groups need not be treated separately, but the researcher might consider a matching scheme which pairs individuals in the same group with each other, in order to reduce variance (e.g. stratification or exact matching on $X_3$).

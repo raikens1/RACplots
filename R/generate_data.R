@@ -21,6 +21,7 @@ generate_data <- function(N = 2000,
                           rho = 0,
                           sigma = 1,
                           tau = 1) {
+  print(true_mu)
 
   df <- data.frame(matrix(rnorm(p*N), ncol = p)) %>%
     dplyr::mutate(mu = !!rlang::parse_quosure(true_mu),
