@@ -12,15 +12,15 @@ AC_filter_plot <- function(data, match, title = ""){
 
   plt_data <- data %>%
     mutate(m = match) %>%
-    mutate(a = ifelse (is.na(m), 0.9, 1),
-           t = as.factor(abs(1-t))) %>%
+    mutate(a = !is.na(m)) %>%
     dplyr::select(c(t, prog, prop, m, a))
 
   plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) +
     geom_point(aes(alpha = a), size = 1) +
-    scale_color_brewer(palette="Set1") +
-    ggtitle( title)+
-    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
+    scale_color_brewer(palette="Set1", direction = -1) +
+    ggtitle(title)+
+    theme(legend.position = "none", aspect.ratio = 1,
+          plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
     xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
 
@@ -36,19 +36,18 @@ AC_filter_plot <- function(data, match, title = ""){
 #'
 #' @return
 #' @export
-RC_filter_plot <- function(data, match, k = 1, title = ""){
-  n_pairs <- sum(!is.na(match))/(k + 1)
+RC_filter_plot <- function(data, match, title = ""){
+  n_pairs <- sum(!is.na(match))/2
 
   plt_data <- data %>%
     mutate(m = match) %>%
-    mutate(a = ifelse (is.na(m), 0.9, 1),
-           t = as.factor(abs(1-t))) %>%
+    mutate(a = !is.na(m)) %>%
     dplyr::select(c(t, prog, IV, m, a))
 
-  plt <- ggplot(data = plt_data, aes( x = IV, y = prog, group = t, color = t)) +
+  plt <- ggplot(data = plt_data, aes(x = IV, y = prog, group = t, color = t)) +
     geom_point(aes(alpha = as.factor(a)), size = 1)+
-    scale_color_brewer(palette="Set1") +
-    ggtitle( title)+
+    scale_color_brewer(palette="Set1", direction = -1) +
+    ggtitle(title)+
     theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
     xlab(expression(paste("IV", sep = "")))
@@ -66,18 +65,17 @@ RC_filter_plot <- function(data, match, k = 1, title = ""){
 #' @return
 #' @export
 RA_filter_plot <- function(data, match, k = 1, title = ""){
-  n_pairs <- sum(!is.na(match))/(k + 1)
+  n_pairs <- sum(!is.na(match))/2
 
   plt_data <- data %>%
     mutate(m = match) %>%
-    mutate(a = ifelse (is.na(m), 0.9, 1),
-           t = as.factor(abs(1-t))) %>%
+    mutate(a = !is.na(m)) %>%
     dplyr::select(c(t, prop, IV, m, a))
 
-  plt <- ggplot(data = plt_data, aes( x = IV, y = prop, group = t, color = t)) +
+  plt <- ggplot(data = plt_data, aes(x = IV, y = prop, group = t, color = t)) +
     geom_point(aes(alpha = a), size = 1)+
-    scale_color_brewer(palette="Set1") +
-    ggtitle( title)+
+    scale_color_brewer(palette="Set1", direction = -1) +
+    ggtitle(title)+
     theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
   xlab(expression(paste("IV", sep = "")))

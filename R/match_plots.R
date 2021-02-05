@@ -10,8 +10,7 @@ AC_match_plot <- function(data, match, title = ""){
 
   plt_data <- data %>%
     mutate(m = match) %>%
-    mutate(a = ifelse (is.na(m), 0.9, 1),
-           t = as.factor(abs(1-t))) %>%
+    mutate(a = !is.na(m)) %>%
     dplyr::select(c(t, prog, prop, m, a))
 
   m_data <- plt_data %>%
@@ -24,15 +23,16 @@ AC_match_plot <- function(data, match, title = ""){
               prog1 = first(prog), prog2 = last(prog)) %>%
     dplyr::select(prog1, prog2, prop1, prop2)
 
-  plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) +
+  plt <- ggplot(data = plt_data, aes(x = prop, y = prog, group = t, color = t)) +
     geom_point(aes(alpha = a), size = 1) +
-    scale_color_brewer(palette="Set1") +
+    scale_color_brewer(palette="Set1", direction = -1) +
     geom_segment(data = m_data,
                  aes(x = prop1, y = prog1,
                      xend = prop2, yend = prog2),
                  color =  "black", group = NA, linetype = "dashed") +
     ggtitle( title)+
-    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
+    theme(legend.position = "none", aspect.ratio=1,
+          plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
     xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
 
@@ -51,8 +51,7 @@ RC_match_plot <- function(data, match, title = ""){
 
   plt_data <- data %>%
     mutate(m = match) %>%
-    mutate(a = ifelse (is.na(m), 0.9, 1),
-           t = as.factor(abs(1-t))) %>%
+    mutate(a = !is.na(m)) %>%
     dplyr::select(c(t, prog, IV, m, a))
 
   m_data <- plt_data %>%
@@ -65,9 +64,9 @@ RC_match_plot <- function(data, match, title = ""){
               prog1 = first(prog), prog2 = last(prog)) %>%
     dplyr::select(prog1, prog2, IV1, IV2)
 
-  plt <- ggplot(data = plt_data, aes( x = IV, y = prog, group = t, color = t)) +
+  plt <- ggplot(data = plt_data, aes(x = IV, y = prog, group = t, color = t)) +
     geom_point(aes(alpha = a), size = 1)+
-    scale_color_brewer(palette="Set1") +
+    scale_color_brewer(palette="Set1", direction = -1) +
     geom_segment(data = m_data,
                  aes(x = IV1, y = prog1,
                      xend = IV2, yend = prog2),
@@ -92,8 +91,7 @@ RA_match_plot <- function(data, match, title = ""){
 
   plt_data <- data %>%
     mutate(m = match) %>%
-    mutate(a = ifelse (is.na(m), 0.9, 1),
-           t = as.factor(abs(1-t))) %>%
+    mutate(a = !is.na(m)) %>%
     dplyr::select(c(t, prop, IV, m, a))
 
   m_data <- plt_data %>%
@@ -108,12 +106,12 @@ RA_match_plot <- function(data, match, title = ""){
 
   plt <- ggplot(data = plt_data, aes( x = IV, y = prop, group = t, color = t)) +
     geom_point(aes(alpha = a), size = 1)+
-    scale_color_brewer(palette="Set1") +
+    scale_color_brewer(palette="Set1", direction = -1) +
     geom_segment(data = m_data,
                  aes(x = IV1, y = prop1,
                      xend = IV2, yend = prop2),
                  color =  "black", group = NA, linetype = "dashed") +
-    ggtitle( title)+
+    ggtitle(title)+
     theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
   xlab(expression(paste("IV", sep = "")))

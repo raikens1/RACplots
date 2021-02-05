@@ -99,9 +99,9 @@ df_normal <- generate_data(N = 1500, p = 10, true_mu = "X1/3-3", rho = rho, sigm
 df_prop_overlap_bad <- generate_data(N = 1500, p = 10, true_mu = "3*X1-6", rho = rho, sigma = 1)
 df_prog_overlap_bad <- generate_data(N = 1500, p = 10, true_mu = "3*X1-6", rho = 0.9, sigma = 1)
 
-a <- AC_plot(data = df_normal, rho)
-b <- AC_plot(data = df_prop_overlap_bad, rho)
-c <- AC_plot(data = df_prog_overlap_bad, 0.9)
+a <- AC_plot(data = df_normal)
+b <- AC_plot(data = df_prop_overlap_bad)
+c <- AC_plot(data = df_prog_overlap_bad)
 
 d <- propensity_histogram(data = df_normal)
 e <- propensity_histogram(data = df_prop_overlap_bad)
