@@ -28,7 +28,7 @@ generate_data(
 \item{tau}{numeric additive treatment effect}
 }
 \value{
-data.frame of covariates, y, t, and mu
+data.frame of covariates, y, t, and true prop (logit scale) and prog
 }
 \description{
 Data set contains measured covariates X, outcome Y, treatment

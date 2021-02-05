@@ -21,7 +21,8 @@ generate_xSITA_data(
 
 \item{true_mu}{string formula giving true propensity score linear model}
 
-\item{rho}{numeric between 0 and 1.  0 => prog orthogonal to prop, 1=> prog || prop}
+\item{rho}{numeric between 0 and 1.  0 => prog orthogonal to prop, 1=> prog
+|| prop}
 
 \item{nu}{coefficient of unmeasured confounder in propensity and prognosis}
 
@@ -30,7 +31,7 @@ generate_xSITA_data(
 \item{tau}{numeric additive treatment effect}
 }
 \value{
-data.frame of covariates, y, t, and mu
+data.frame of covariates, y, t, and true prop (logit scale) and prog
 }
 \description{
 Data set contains measured covariates X, unmeasured covariate U,

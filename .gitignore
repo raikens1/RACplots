@@ -5,3 +5,5 @@ analyses/*files
 .Rhistory
 .DS_Store
 analyses/archive/*
+analyses/data/*
+analyses/CABG*

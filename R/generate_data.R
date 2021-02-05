@@ -13,7 +13,7 @@
 #'   || prop
 #' @param sigma numeric noise to be added to y. y += sigma*rnorm(0,1)
 #' @param tau numeric additive treatment effect
-#' @return data.frame of covariates, y, t, and mu
+#' @return data.frame of covariates, y, t, and true prop (logit scale) and prog
 #' @export
 generate_data <- function(N = 2000,
                           p = 10,
@@ -21,12 +21,12 @@ generate_data <- function(N = 2000,
                           rho = 0,
                           sigma = 1,
                           tau = 1) {
-  print(true_mu)
 
   df <- data.frame(matrix(rnorm(p*N), ncol = p)) %>%
-    dplyr::mutate(mu = !!rlang::parse_quosure(true_mu),
-           t = rbinom(n = N, size = 1, prob = 1 / (1 + exp(-mu))),
-           y = tau * t + rho * X1 + sqrt(1 - rho ^ 2) * X2 + rnorm(N, sd = sigma))
+    dplyr::mutate(prop = !!rlang::parse_quosure(true_mu),
+                  prog = rho * X1 + sqrt(1 - rho ^ 2) * X2,
+           t = as.logical(rbinom(n = N, size = 1, prob = 1 / (1 + exp(-prop)))),
+           y = tau * t + prog + rnorm(N, sd = sigma))
 
   return(df)
 }
@@ -41,14 +41,9 @@ generate_data <- function(N = 2000,
 #' y ~ rho * X1 + sqrt(1-rho^2) * X2 + 0.2 * U + t + epsilon
 #' epsilon ~ normal(0, 1)
 #'
-#' @param N numeric, sample size
-#' @param p numeric, number of features
-#' @param true_mu string formula giving true propensity score linear model
-#' @param rho numeric between 0 and 1.  0 => prog orthogonal to prop, 1=> prog || prop
+#' @inheritParams generate_data
 #' @param nu coefficient of unmeasured confounder in propensity and prognosis
-#' @param sigma numeric noise to be added to y. y += sigma*rnorm(0,1)
-#' @param tau numeric additive treatment effect
-#' @return data.frame of covariates, y, t, and mu
+#' @return data.frame of covariates, y, t, and true prop (logit scale) and prog
 #' @export
 generate_xSITA_data <- function(N = 2000,
                                 p = 10,
@@ -60,9 +55,10 @@ generate_xSITA_data <- function(N = 2000,
   # set up covariates
   df <- data.frame(matrix(rnorm(p * N), ncol = p)) %>%
     mutate(U = rnorm(N),
-           mu = !!rlang::parse_quosure(true_mu),
-           t = rbinom(n = N, size = 1, prob = 1 / (1 + exp(-mu))),
-           y = tau * t + rho * X1 + sqrt(1 - rho ^ 2)*X2 + nu * U + rnorm(N, sd = sigma))
+           prop = !!rlang::parse_quosure(true_mu),
+           prog = rho * X1 + sqrt(1 - rho ^ 2)*X2 + nu * U,
+           t = rbinom(n = N, size = 1, prob = 1 / (1 + exp(-prop))),
+           y = tau * t + prog + rnorm(N, sd = sigma))
 
   return(df)
 }
@@ -77,13 +73,8 @@ generate_xSITA_data <- function(N = 2000,
 #'   y ~ rho * X1 + sqrt(1-rho^2) * X2 + tau * t + epsilon;
 #'   epsilon ~ normal(0, 1)
 #'
-#' @param N numeric, sample size
-#' @param p numeric, number of features
+#' @inheritParams generate_data
 #' @param c numeric, cutoff for forcing variable
-#' @param rho numeric between 0 and 1.  0 => prog orthogonal to prop, 1=> prog
-#'   || prop
-#' @param sigma numeric noise to be added to y. y += sigma*rnorm(0,1)
-#' @param tau numeric additive treatment effect
 #' @return data.frame of covariates, y, t, and mu
 #' @export
 generate_rd_data <- function(N = 1000,
