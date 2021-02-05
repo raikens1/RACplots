@@ -16,6 +16,11 @@ library(tidyverse)
 library(ggpubr)
 
 theme_set(theme_light())
+
+# set some universal variables
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+k = 1
 ```
 
 # Abstract
@@ -85,13 +90,6 @@ In order to clearly demonstrate the ideas behind the assignment control plots in
 ## Assignment-Control Plots and Data Diagnostics
 
 A first use for the assignment-control plot is as an informal data diagnostic. Researchers running observational studies often want a basic understanding of the baseline variation between the treatment and control groups before they begin. Plotting the standardized mean differences between the treatment groups is a common starting place to understand imbalances between groups, but when there are many covariates -- some of which are irrelevant -- it can be difficult to tell by eye which imbalances should be of most concern.  Histograms of propensity score overlap can be an important diagnostic for checking that the treatment and control groups overlap in terms of their probability of treatment (since this condition is essential for many causal inference methodologies).  However, the propensity score does not necessarily reflect all aspects of covariate balance which may be important. 
-
-```{r}
-# set some universal variables
-prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
-prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
-k = 1
-```
 
 
 ```{r fig.width=8, fig.height=5, fig.cap="Assignment-Control plots (A-C) and propensity score density histograms (D-F) for three simulated observational datasets. Red points represent treated observations, blue points represent control."}
@@ -298,7 +296,7 @@ m_match <- pairmatch(mahal_dist, controls = k, df)
 #Calculate best possible propensity and prognostic scores without knowing about confounder
 naive_df <- df %>% 
     mutate(prog = rho*X1 + sqrt(1-rho^2)*X2, 
-           prop = 1/(1+exp(-(X1/3-3))))
+           prop = X1/3-3)
 
 naive_prop_match <- pairmatch(t ~ prop, controls = k, naive_df)
 mahal_caliper_dist <- addcaliper(mahal_dist, z = naive_df$t, p = naive_df$prop, caliper = 0.1)
@@ -309,11 +307,11 @@ m_caliper_match <- pairmatch(mahal_caliper_dist, controls = k, naive_df)
 ```{r,  fig.width=8, fig.height= 6, fig.cap="Assignment-control plots for three matching schemes on a dataset with unobserved confounding.  A-C depict the assignment-control space as ascertained without knowledge of the unobserved confounder.  D-F depict the true assignment-control space and the true match distances."}
 
 a <- AC_match_plot(naive_df, m_match, title = "Mahalanobis Match")
-b <- AC_match_plot(naive_df, oracle_prop_match, title = "Propensity Match")
+b <- AC_match_plot(naive_df, naive_prop_match, title = "Propensity Match")
 c <- AC_match_plot(naive_df, m_caliper_match, title = "Mahalanobis Match, Joint Calipers")
 
 d <- AC_match_plot(df, m_match, title = "Mahalanobis Match")
-e <- AC_match_plot(df, oracle_prop_match, title = "Propensity Match")
+e <- AC_match_plot(df, naive_prop_match, title = "Propensity Match")
 f <- AC_match_plot(df, m_caliper_match, title = "Mahalanobis Match, Joint Calipers")
 
 ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
