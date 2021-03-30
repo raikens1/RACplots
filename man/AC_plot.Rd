@@ -4,12 +4,15 @@
 \alias{AC_plot}
 \title{Assignment-Control Plot}
 \usage{
-AC_plot(data, title = "")
+AC_plot(data, title = "", opaque_class = 1)
 }
 \arguments{
 \item{data}{a data.frame or tibble with t, prop, and prog}
 
 \item{title}{a title for the plot}
+
+\item{opaque_class}{1, 0 or "none".  Specifies which class should be opaque
+and which should be translucent}
 }
 \value{
 a ggplot object

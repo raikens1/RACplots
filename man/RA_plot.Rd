@@ -4,12 +4,15 @@
 \alias{RA_plot}
 \title{Randomization-Assignment plot}
 \usage{
-RA_plot(data, title = "")
+RA_plot(data, title = "", opaque_class = 1)
 }
 \arguments{
 \item{data}{a data.frame or tibble with t, prop, and IV}
 
 \item{title}{a title for the plot}
+
+\item{opaque_class}{1, 0 or "none".  Specifies which class should be opaque
+and which should be translucent}
 }
 \value{
 a ggplot object

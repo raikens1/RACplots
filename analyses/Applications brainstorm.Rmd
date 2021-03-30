@@ -1,0 +1,56 @@
+---
+title: 'Brainstorm: When to use RACplots'
+author: "Rachael Caelie (Rocky) Aikens"
+date: "3/4/2021"
+output: pdf_document
+bibliography: citations.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Intro: tradeoffs of RACplots
+
+AC plots are interesting, but there are certain tradeoffs involved in making one.  In a simulated setting, creating an RAC plot is as simple as writing the code, since observations are expendable and the ground truth is knowable.  In the applied setting, there are two main considerations:
+
+1. When is it worthwhile to expend the observations to fit a prognostic score?
+
+2. When might an AC plot actually be misleading?
+
+The answer to 1. is discussed in part in @aikens2020pilot. In general, it's probably not useful to expend observations for the sole purpose of making an AC plot unless observations are extremely plentiful (e.g. hundreds of thousands; so many that the cost is virtually zero), but if you have made the decision to fit a prognostic score for matching, stratification or some other purpose, the AC plot is a nice diagnostic "bonus."  ***Perhaps* if something has gone very wrong *after* an analysis, you could fit a prognostic score on the whole data set and make AC plots to try and understand what went wrong.**
+
+When might an AC plot actually be misleading?  This depends on what you would use it for.  I'll write some thoughts below.
+
+# Applied settings
+
+Here are some ways in which AC plots might be useful in an applied setting:
+
+## Data Diagnostics
+
+Both propensity scores and prognostic scores can be used for diagnosing a dataset prior to any further study design. Here are some things you might learn from this:
+
+1. *Propensity score overlap*  This is something you can also check using the propensity score histograms. One can certainly be lead to believe that overlap is better than it actually is by leaving out a covariate in the propensity score that is highly explanatory, but this is true whether you visualize with propensity score histograms or AC-plots, and we should still check propensity score overlap even if this check is not infallible.  It's difficult for me to imagine a case in which propensity score overlap would look *worse* than reality, but if that happened it doesn't seem like a scenario we should be worrying about anyway.
+
+2. *Correllation between propensity and prognosis*  When propensity and prognosis were highly correllated in our simulations from @aikens2020pilot, all matching methods had their highest bias, and mahalanobis distance performed especially poorly.  This case can be especially problematic if propensity overlap is poor, because there may be no treated individuals at some levels of the prognostic score.  In this situation, SATT methods may generalize poorly to those levels of the prognostic score.  With bad score models, it is easy to imagine a scenario in which an omitted covariate causes propensity and prognosis to be more losely correllated than they really are, but -- as with the propensity score overlap -- this doesn't seem like a good reason not to check. Similarly, it's hard to imagine a scenario in which the correllation would look *worse* than reality, and if this did happen it probably wouldn't be that worrying of a scenario.
+
+3. *Striae in the score models*  In some cases, a categorical covariate may be highly associated with the outcome or the treatment, resulting in striae of observations with similar prognostic score or propensity score.  This is not problematic in and of itself, but it may be a signal that this covariate is worth extra attention.  Perhaps this covariate is an important treatment effect modifier, and the researcher should consider stratification or exact-matching on this covariate.  Perhaps the dynamics determining treatment and/or outcome realizations are different in these two groups, and they should be analyzed separately, perhaps with different score models.  Perhaps there is a small group of outliers who are so different from the other study subjects that they really should be excluded from the study altogether. In this scenario, poorly fit score models could lead you to fail to notice an important covariate, in which case you have lost nothing by checking.  However, poor score model fit could also lead you to overestimate the importance of a covariate that is actually not very relevant, leading to wasted effort and perhaps unnecessarily sacrificed power or match quality.
+
+4. *Other weird relationships between propensity and prognosis?* TODO
+
+5. *Lack of independence between prognosis and treatment, conditional on propensity* TODO
+
+6. *Outlier Identification* TODO Propensity score trimming is well understood, but does it ever make sense to trim based on prognostic score?  In the binary outcome case, you'll probably see no treatment effect among those whose prognostic scores are close to 0 or close to 1 anyway.  This probably ties into an HTE/CATE view - you may want to find the group of people who are most likely to respond to treatment because their prognostic score is intermediate, so either outcome is likely.
+
+## Match Diagnostics
+
+It may be useful to employ a combination of love plots and AC plots to diagnose match quality. AC plots allow the researcher to visualize the matches in the context of two important variables for bias and variance as well as sensitivity analyses.  However, other variation may be important if it might modify the effect of treatment.  Love plots can be ideal for checking the balance on a few named covariates that we -- perhaps because of expert knowledge -- believe to be especially important to the problem because they may be effect modifiers (balancing on effect modifiers reduces... variance??? TODO).  Note that when there are too many matches to visualize (or $k$ is large enough to make things confusing), can just visualize the included/excluded individuals.  Ideally what you'd like to see after matching is a data cloud with evenly dispersed treat/control observations. (TODO: need to modify this for variable $k$?)
+
+How can this be misleading?  If our score models are very wrong and our expert knowledge is very good, it might be better to ignore the score models and just do mahalanobis distance matching while using exact matching or calipers on the variables that your expert thinks are most important.  In reality does this ever happen? Stuart suggests using the prognostic score as a balance measure; this is basically the visual equivalent. Probably can even layer Stuarts work on top to give them a nice numeric summary to think about (TODO)
+
+## RAC plots
+
+# Theoretical Settings
+
+In general, the AC plot can help visualize correllations between important aspects of variation.  The central concept is to represent the subjects of an observational study in terms of the most important sources of variation.  How to isolate those axes of variation from a raw dataset may be a difficult or nuanced process. 
+# Citations

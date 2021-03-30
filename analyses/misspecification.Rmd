@@ -1,0 +1,115 @@
+---
+title: "RAC plots and misspecification"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "3/2/2021"
+output: pdf_document
+bibliography: citations.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(RACplots)
+library(stratamatch)
+
+theme_set(theme_light())
+
+# set some universal variables
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+k = 1
+```
+
+
+# Intro: Null expectations about AC plots
+
+One interesting fact that has emerged in our exploration of AC plots is: *not all assignment-control plots are
+possible.* In particular, if two points have the same horizontal position (same propensity score), they must
+have the same probability of treatment, by definition. In pictures, this means that the red treated individuals
+must be scattered evenly across horizontal level-sets.
+
+One interesting implication for this is that an AC plot may be able to indicate in some cases whether the propensity score has been misspecified.
+
+
+# Set-up
+
+
+The results that follow depict several simulated datasets.  The primary generative model for these is based on @aikens2020pilot and is specified as follows:
+
+\begin{align*}
+X_i &\sim Normal(0, I_{10}) \\
+T_i &\sim Bernoulli\left(\frac{1}{1 + exp(\phi(X_i))}\right) \\
+Y_i(0) &= \Psi(X_i) + \epsilon_i \\
+\epsilon_i &\sim N(0, 1) 
+\end{align*}
+
+where $\phi(X)$ and $\Psi(X)$ represent the true propensity and prognostic score functions, given by
+
+\begin{align*}
+\phi(X_i) &= c_1 X_{i1} - c_0 \\
+\Psi(X_i) &= \rho X_{i1} + \sqrt{(1 - \rho^2)} X_{i2}.
+\end{align*}
+
+Where $c_1$, $c_0$, and $\rho$ are constants.  In particular, the form for the prognostic function above guarantees that $\rho = Corr(\phi(X), \Psi(X))$.
+
+# A Toy Example
+
+```{r}
+set.seed(123)
+
+df <- generate_data(rho = 0.5, N = 5000)
+
+split.full <- split_pilot_set(df, treat = "t",
+                           pilot_fraction = 0.1)
+
+prog_fit <- lm(prog_model, data = split.full$pilot_set)
+
+summary(prog_fit)
+
+prog_scores <- predict(prog_fit, newdata = split.full$analysis_set)
+
+prop_fit <- glm(prop_model, family = binomial(), data = df)
+
+summary(prop_fit)
+
+prop_scores <- predict(prop_fit, newdata = split.full$analysis_set)
+
+df_fit <- mutate(split.full$analysis_set, prop = prop_scores, prog = prog_scores)
+
+AC_plot(df_fit)
+
+df_fit %>% mutate(prop_quantile = ntile(prop_scores, n = 10)) %>%
+  ggplot(aes(x = factor(prop_quantile), y = prog, fill = t)) + geom_boxplot(alpha = 0.5) +
+  scale_fill_brewer(palette = "Set1", direction = -1)
+```
+
+```{r}
+set.seed(123)
+
+df <- generate_data(true_mu = "X1-3", rho = 0.5, N = 5000)
+
+split.full <- split_pilot_set(df, treat = "t",
+                           pilot_fraction = 0.1)
+
+prog_fit <- lm(prog_model, data = split.full$pilot_set)
+
+summary(prog_fit)
+
+prog_scores <- predict(prog_fit, newdata = split.full$analysis_set)
+
+prop_fit <- glm(t ~ X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10, family = binomial(), data = df)
+
+summary(prop_fit)
+
+prop_scores <- predict(prop_fit, newdata = split.full$analysis_set)
+
+df_fit <- mutate(split.full$analysis_set, prop = prop_scores, prog = prog_scores)
+
+AC_plot(df_fit)
+
+df_fit %>% mutate(prop_quantile = ntile(prop_scores, n = 10)) %>%
+  ggplot(aes(x = factor(prop_quantile), y = prog, fill = t)) + geom_boxplot(alpha = 0.5) +
+  scale_fill_brewer(palette = "Set1", direction = -1)
+```
+
+# References

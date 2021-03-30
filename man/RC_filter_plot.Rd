@@ -4,7 +4,7 @@
 \alias{RC_filter_plot}
 \title{Randomization-Control Filter Plot}
 \usage{
-RC_filter_plot(data, match, k = 1, title = "")
+RC_filter_plot(data, match, title = "")
 }
 \arguments{
 \item{data}{a data.frame or tibble with t, prog, and IV}

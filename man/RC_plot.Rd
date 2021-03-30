@@ -4,12 +4,15 @@
 \alias{RC_plot}
 \title{Randomization-Control plot}
 \usage{
-RC_plot(data, title = "")
+RC_plot(data, title = "", opaque_class = 1)
 }
 \arguments{
 \item{data}{a data.frame or tibble with t, prog, and IV}
 
 \item{title}{a title for the plot}
+
+\item{opaque_class}{1, 0 or "none".  Specifies which class should be opaque
+and which should be translucent}
 }
 \value{
 a ggplot object
