@@ -182,23 +182,6 @@ prognostic <- caliper_match$prognostic
 ```
 
 ```{r}
-AC_plot2 <- function(data, title = "", shaded = 0){
-  plt_data <- data %>%
-    mutate(t = as.factor(t), a = as.factor(t == shaded)) %>%
-    dplyr::select(c(t, prog, prop, a))
-  
-  plt <- ggplot(data = plt_data, aes( x = prop, y = prog, group = t, color = t)) + 
-    geom_point(size = 1, aes(alpha = a)) +
-    scale_alpha_manual(values = c(0.5, 1)) +
-    scale_color_brewer(palette="Set1", direction = -1) +
-    ggtitle(title) +
-    theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
-    ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
-    xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
-  
-  return(plt)
-}
-
 AC_plot_uncertainty <- function(data, title = "", shaded = 0){
   plt_data <- data %>%
     mutate(t = as.factor(t), a = as.factor(t == shaded)) %>%
@@ -237,7 +220,7 @@ a_set_subsample <- a_set %>%
   sample_frac(0.02)
   
 a <- AC_plot_uncertainty(a_set_subsample)
-b <- AC_plot2(a_set_subsample)
+b <- AC_plot(a_set_subsample)
 
 ggarrange(b, a, nrow = 1, ncol = 2, labels = "AUTO")
 ```

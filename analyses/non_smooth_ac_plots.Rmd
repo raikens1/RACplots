@@ -67,9 +67,7 @@ This is starting to look like what Mike asked for.  But there's a problem.  That
 The assignment-control plot looks like this:
 
 ```{r}
-ggplot(df, aes(x = prop, y = prog, color = t)) +
-  geom_point(alpha = 0.7) +
-  scale_color_brewer(palette = "Set1", direction = -1)
+AC_plot(df, opaque_class = "none")
 ```
 
 And so here's the problem that I keep getting hung up on.  It's not so simple to fabricate examples of assignment-control plots because not all assignment-control plots are possible. As soon as we point to a quadrant of the AC plot and say "imagine if there were no treated individuals here" _all_ of the points in that quadrant (treated and control) aren't there any more -- their propensity score must be zero, so they all disappear and get smooshed onto the Y axis.
@@ -78,7 +76,7 @@ In fact, you can't make an assignment control plot where the probability of assi
 
 \pagebreak
 
-# My best attempt: Prognosis hamburgers
+# Nonlinearity: Prognosis hamburgers
 
 If the propensity score were not continuous, the researcher would notice it just by looking at the propensity score histograms.  What if the prognostic score were not continuous?
 
@@ -100,9 +98,9 @@ df <- tibble(X1 = rnorm(n), X2 = rnorm(n), X3 = rbinom(n, 1, 0.5)) %>%
 ```
 
 ```{r}
-ggplot(df, aes(x = prop, y = prog, color = t)) +
-  geom_point(alpha = 0.7) +
-  scale_color_brewer(palette = "Set1", direction = -1)
+AC_plot(df, opaque_class = "none")
 ```
 
 Here, the data pretty clearly separates into two distinct clouds, which you wouldn't be able to notice if you only looked at the propenisity score histograms.  How should the researcher respond if they notice a cloud pattern?  First, the researcher might want to check whether individuals from the different clouds may be different in some important way.  For example, $X_3$ is a potential treatment effect modifier, and the researcher should consider estimating treatment effects separately on each group.  Perhaps individuals from the two groups actually have different propensity and prognostic models altogether, and the models should be estimated on each group separately.  Perhaps the two groups are just prognostically different, but we have reason to believe the treatment effect and score models are the same across the groups.  In that case, the two groups need not be treated separately, but the researcher might consider a matching scheme which pairs individuals in the same group with each other, in order to reduce variance (e.g. stratification or exact matching on $X_3$).
+
+## Smooth nonlinear relationships
