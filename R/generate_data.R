@@ -57,7 +57,7 @@ generate_xSITA_data <- function(N = 2000,
     mutate(U = rnorm(N),
            prop = !!rlang::parse_quosure(true_mu),
            prog = rho * X1 + sqrt(1 - rho ^ 2)*X2 + nu * U,
-           t = rbinom(n = N, size = 1, prob = 1 / (1 + exp(-prop))),
+           t = as.logical(rbinom(n = N, size = 1, prob = 1 / (1 + exp(-prop)))),
            y = tau * t + prog + rnorm(N, sd = sigma))
 
   return(df)

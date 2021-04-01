@@ -45,7 +45,7 @@ Where $c_2$, $c_1$, $c_0$, and $\rho$ are constants.  As before, Z is an instrum
 
 An easy way to fabricate this is to set:
 
-$$Z_i = \rho_Z X_{i1} + \sqrt{1-\rho_z^2}\zeta_i$$
+$$Z_i = \rho_z X_{i1} + \sqrt{1-\rho_z^2}\zeta_i$$
 
 Where the $\zeta_i$ are iid standard normal and completely independent of all other covariates.  In this setup, $\zeta$ might be thought of as the "pure" IV, while $Z$ represents an IV that - while still a valid instrumental variable - is only independent of the outcome given the treatment assignment *and* the observed covariates.  Importantly, while $Z$ is measured, the "pure" IV $\zeta$ is unmeasured.
 

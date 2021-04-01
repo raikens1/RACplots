@@ -66,7 +66,7 @@ RC_plot <- function(data, title = "", opaque_class = 1){
     ggtitle(title) +
     theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
-    xlab(expression(paste("IV", sep = "")))
+    xlab(expression(paste("IV, ", zeta, sep = "")))
 
   # if neither class is to be opaque, set alpha = 0.6
   if(opaque_class == "none"){

@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, fig.height = 4, fig.width = 5, fig.align= "center")
+knitr::opts_chunk$set(echo = F, warning = F, message = F, fig.height = 4, fig.width = 5, fig.align= "center")
 library(RACplots)
 library(tidyverse)
 library(ggpubr)
@@ -15,12 +15,6 @@ library(DOS2)
 
 theme_set(theme_light())
 ```
-
-# Introduction
-
-One thing that would be really interesting to us is thinking through cases where the ac plots tell a side of the story that the propensity score histograms do not. We've already thought a little bit about how AC plots might be able to tell you something about match quality or about the correllation of propensity and prognosis.
-
-Are there other examples where the prognostic dimension -- or the 2D relationship between propensity and prognosis -- can give us insights that propensity alone would not? 
 
 # What I'm hung up on: Not all assignment-control plots are possible.
 
@@ -104,3 +98,22 @@ AC_plot(df, opaque_class = "none")
 Here, the data pretty clearly separates into two distinct clouds, which you wouldn't be able to notice if you only looked at the propenisity score histograms.  How should the researcher respond if they notice a cloud pattern?  First, the researcher might want to check whether individuals from the different clouds may be different in some important way.  For example, $X_3$ is a potential treatment effect modifier, and the researcher should consider estimating treatment effects separately on each group.  Perhaps individuals from the two groups actually have different propensity and prognostic models altogether, and the models should be estimated on each group separately.  Perhaps the two groups are just prognostically different, but we have reason to believe the treatment effect and score models are the same across the groups.  In that case, the two groups need not be treated separately, but the researcher might consider a matching scheme which pairs individuals in the same group with each other, in order to reduce variance (e.g. stratification or exact matching on $X_3$).
 
 ## Smooth nonlinear relationships
+
+Let's try this and see what happens
+
+\begin{align*}
+\phi(X_i) &= c_1 X_{i1} - c_0 \\
+\Psi(X_i) &= \phi(x)^2
+\end{align*}
+
+```{r}
+n <- 1000
+df <- tibble(X1 = rnorm(n), X2 = rnorm(n)) %>%
+  mutate(prop = X1/3) %>%
+  mutate(t = as.factor(rbinom(n, 1, 1/(1 + exp(-prop)))),
+         prog = prop^2 + X2/6)
+```
+
+```{r}
+AC_plot(df, opaque_class = "none")
+```

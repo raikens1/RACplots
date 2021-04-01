@@ -1,0 +1,162 @@
+---
+title: "Some interesting AC plot pattens"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "3/31/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F, fig.height = 4, fig.width = 5, fig.align= "center")
+library(RACplots)
+library(tidyverse)
+library(ggpubr)
+library(optmatch)
+library(DOS2)
+
+theme_set(theme_light())
+```
+
+# Introduction
+
+Now that we've articulated some ideas about AC plots, let's think about some patterns we might find in our AC plots and what they would mean for a research question.
+
+\pagebreak
+
+# Correllation between propensity and prognosis
+
+When treatment assignment and prognosis are highly correllated, there is a tendency towards bias in naive comparisons which seek to estimate treatment effect.  This may be true even in matching studies; in our Pilot Designs paper, we found that propensity score, mahalanobis distance, and joint matching all had their highest bias when propensity and prognosis were highly corellated.
+
+One overlooked possibility is that the _direction_ of correllation between assignment and outcome may be important.  When assignment and outcome are _positively_ correllated, we may have a greater tendency to _overestimate_ treatment effect (i.e. to associate treatment with greater outcome or a higher probability of the positive outcome), but when assignment and outcome are _negatively_ correllated, we may have a greater tendency to _underestimate_ treatment effect (i.e. to associate treatment with lower outcome or a lower probability of the positive outcome).
+
+```{r fig.width=8, fig.height=5, fig.cap="Assignment-Control plots (A-C) and propensity score density histograms (D-F) for three simulated observational datasets. Red points represent treated observations, blue points represent control."}
+set.seed(123)
+#simulate data
+df_0 <- generate_data(N = 1500, p = 10, true_mu = "3*X1-5", rho = 0, sigma = 1)
+df_pos <- generate_data(N = 1500, p = 10, true_mu = "3*X1-5", rho = 0.9, sigma = 1)
+df_neg <- generate_data(N = 1500, p = 10, true_mu = "3*X1-5", rho = -0.9, sigma = 1)
+
+a <- AC_plot(data = df_0)
+b <- AC_plot(data = df_pos)
+c <- AC_plot(data = df_neg)
+
+d <- propensity_histogram(data = df_0)
+e <- propensity_histogram(data = df_pos)
+f <- propensity_histogram(data = df_neg)
+
+ggarrange(a, b, c, d, e, f, ncol= 3, nrow = 2, heights = c(3, 2), labels = "AUTO")
+```
+
+\pagebreak
+
+# Prognostic score Distribution
+
+## Discontinuities in Prognostic Score
+
+Discontinuities in the propensity score can be easily identified with histograms.  What if the prognostic score were not continuous?
+
+```{r}
+n <- 1000
+df <- tibble(X1 = rnorm(n), X2 = rnorm(n), X3 = rbinom(n, 1, 0.8)) %>%
+  mutate(prog = 3*X3 + X2/3,
+         prop = 1/(1 + exp(-X1 + 1))) %>%
+  mutate(t = as.factor(rbinom(n, 1, prop)))
+```
+
+```{r}
+AC_plot(df, opaque_class = "none")
+```
+
+Here, the data pretty clearly separates into two distinct clouds, which you wouldn't be able to notice if you only looked at the propenisity score histograms.  How should the researcher respond if they notice a cloud pattern?  First, the researcher might want to check whether individuals from the different clouds may be different in some important way.  For example, $X_3$ is a potential treatment effect modifier, and the researcher should consider estimating treatment effects separately on each group.  Perhaps individuals from the two groups actually have different propensity and prognostic models altogether, and the models should be estimated on each group separately.  Perhaps the two groups are just prognostically different, but we have reason to believe the treatment effect and score models are the same across the groups.  In that case, the two groups need not be treated separately, but the researcher might consider a matching scheme which pairs individuals in the same group with each other, in order to reduce variance (e.g. stratification or exact matching on $X_3$).
+
+\pagebreak
+
+## Outliers in the Prognostic Score
+
+In a similar vein, an AC plot can help us identify outliers in the prognostic score.  What if we tweak the simulation set-up above so that only very few individuals (1 in 100) have $X_3 = 1$?  Now there is a small set of extreme outliers in our sample:
+
+```{r}
+set.seed(123)
+n <- 1000
+df <- tibble(X1 = rnorm(n), X2 = rnorm(n), X3 = rbinom(n, 1, 0.01)) %>%
+  mutate(prog = 3*X3 + X2/3,
+         prop = 1/(1 + exp(-X1 + 1))) %>%
+  mutate(t = as.factor(rbinom(n, 1, prop)))
+```
+
+```{r}
+AC_plot(df, opaque_class = "none")
+```
+
+What do prognostic score outliers mean for a study? Perhaps there is something interesting about those outlier individuals that bears investigation.  Maybe we believe that their response to treatment would be different from other individuals in the population, and we may want to revisit our exclusion criteria.  Extreme outliers in the prognostic score may also be difficult to match, since there may be no nearby subjects.  Depending on the matches used, this could increase the bias or the variance of the effect estimate.
+
+\pagebreak
+
+## Prognostic scores of 0 or 1
+
+As an example, suppose the outcome is binary and that there are some individuals whose probability of the outcome is 1.
+
+```{r}
+n <- 1000
+
+df_both <- tibble(X1 = rnorm(n), X2 = rbeta(n, 0.25, 0.25), X3 = rbinom(n, 1, 0.4)) %>%
+  mutate(prog = X2,
+         prop = 1/(1 + exp(-X1 + 1))) %>%
+  mutate(t = as.factor(rbinom(n, 1, prop)))
+
+df_0s <- tibble(X1 = rnorm(n), X2 = rbeta(n, 0.5, 4), X3 = rbinom(n, 1, 0.4)) %>%
+  mutate(prog = X2,
+         prop = 1/(1 + exp(-X1 + 1))) %>%
+  mutate(t = as.factor(rbinom(n, 1, prop)))
+
+df_1s <- tibble(X1 = rnorm(n), X2 = rbeta(n, 4, 0.5), X3 = rbinom(n, 1, 0.4)) %>%
+  mutate(prog = X2,
+         prop = 1/(1 + exp(-X1 + 1))) %>%
+  mutate(t = as.factor(rbinom(n, 1, prop)))
+```
+
+```{r fig.width=8, fig.height=4}
+a <- AC_plot(data = df_1s, opaque_class = "none")
+b <- AC_plot(data = df_0s, opaque_class = "none")
+c <- AC_plot(data = df_both, opaque_class = "none")
+
+ggarrange(a, b, c, ncol= 3, nrow = 1, labels = "AUTO")
+```
+
+What now? If an individual is guaranteed to have the positive outcome under the control condition, the treatment can only have a _zero or negative_ effect.  Likewise if they are guaranteed to have the negative outcome under the control condition, the treatment effect can only have a _zero or positive_ effect.  These may actually be common scenarios! For example, in the clinic, we may be interested in life-saving treatments for individuals who have no other chance of survival, or we may be interested in preventing readmission for patients who are nearly guaranteed to return to the hospital after discharge.
+
+There are a variety of ways to respond to this type of scenario.  For one thing, we could proceed as planned - we may still be able to perform perfectly reasonable inference - but on the other hand, these patterns could be a hint that something about the way we've set up the problem could be improved, so that the results whatever treatment effect we _do_ estimate is more useful. Here are some ideas to consider:
+
+1. Consider treatment effect heterogeneity based on prognostic score. Individuals whose outcomes under the control assignment are essentially predetermined can only have certain types of treatment effects, so in these scenarios treatment effect heterogeneity may be of serious interest. For example, suppose we have an agressive treatment which completely cures the patient 90% of the time, but with a 10% rate of mortality.  This procedure may be of interest to patients whose prognosis is already very dire, but it may be entirely inappropriate for individuals who already are likely to recover without the treatment.
+
+2. We may want to revisit our definition of the target population.  If an individual is guaranteed to have the desired outcome already, why treat them?  If many individuals in our sample don't need treatment at all, perhaps we should reconsider who we are really interested in studying.
+
+3. We may want to reframe our outcome altogether. For example, if the rate of the outcome in our study population is nearly 100%, we may want to consider another less-common outcome, or we may be interested in time-to-event.
+
+\pagebreak
+
+# Higher-order relationships between propensity and prognostic score
+
+What if the relationship between the propensity and prognostic scores is nonlinear?
+
+```{r}
+n <- 500
+df_cup <- tibble(X1 = rnorm(n), X2 = rnorm(n)) %>%
+  mutate(prop = 4*X1/5) %>%
+  mutate(t = as.factor(rbinom(n, 1, 1/(1 + exp(-prop)))),
+         prog = prop^2 + X2/4)
+df_boomerang <- tibble(X1 = rnorm(n), X2 = rnorm(n)) %>%
+  mutate(prog = 4*X1/5) %>%
+  mutate(prop = -prog^2 -1 + X2/4) %>%
+  mutate(t = as.factor(rbinom(n, 1, 1/(1 + exp(-prop)))))
+```
+
+```{r}
+a <- AC_plot(df_cup, opaque_class = "none")
+b <- AC_plot(df_boomerang, opaque_class = "none")
+
+ggarrange(b, a, ncol= 2, nrow = 1, labels = "AUTO")
+```
+
+A. This is the scenario in which the "sickest" and the "healthiest" individuals are seldom treated, for example because the ill people are too high risk and the healthy individuals are percieved to benefit little from the treatment.  You might also see the reverse relationship (sick and healthy treated, intermediate untreated), although it's a little harder to imagine why that scenario might arise.  In this scenario, prognostic score matching could be important, because individuals in the upper part of the curve may be poor prognostic matches in the lower part of the curve.  We might also consider reframing our target population to reflect the fact that we really only can understand the effect of treatment in intermediately healthy individuals.
+
+B. This is the scenario in which the sickest people are either very likely or very unlikely to recieve the treatment (or respectively the healthiest).  I have a little trouble imagining why this would happen; perhaps there are programs that specifically try to treat the most vulnerable individuals, but those welfare programs are heavily localized, leaving those vulnerable individuals with a very low probability of treatment elsewhere.  I also can't really think of how one would respond to this scenario.  Seems like this would go okay?
