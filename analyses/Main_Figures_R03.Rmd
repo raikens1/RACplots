@@ -50,19 +50,19 @@ Where $c_1$, $c_0$, and $\rho$ are constants.  In particular, the form for the p
 A first use for the assignment-control plot is as an informal data diagnostic. Researchers running observational studies often want a basic understanding of the baseline variation between the treatment and control groups before they begin. Plotting the standardized mean differences between the treatment groups (love plots) is a common starting place to understand imbalances between groups, but when there are many covariates -- some of which are irrelevant -- it can be difficult to tell by eye which imbalances should be of most concern.  Histograms of propensity score overlap can be an important diagnostic for checking that the treatment and control groups overlap in terms of their probability of treatment (since this condition is essential for many causal inference methodologies).  However, the propensity score does not necessarily reflect all aspects of covariate balance which may be important. 
 
 ```{r fig.width=8, fig.height=5, fig.cap="Assignment-Control plots (A-C) and propensity score density histograms (D-F) for three simulated observational datasets. Red points represent treated observations, blue points represent control."}
-rho <- 0.3
+set.seed(123)
 #simulate data
-df_normal <- generate_data(N = 1500, p = 10, true_mu = "X1/3-3", rho = rho, sigma = 1)
-df_prop_overlap_bad <- generate_data(N = 1500, p = 10, true_mu = "3*X1-6", rho = rho, sigma = 1)
-df_prog_overlap_bad <- generate_data(N = 1500, p = 10, true_mu = "3*X1-6", rho = 0.9, sigma = 1)
+df_0 <- generate_data(N = 1500, p = 10, true_mu = "3*X1-5", rho = 0, sigma = 1)
+df_pos <- generate_data(N = 1500, p = 10, true_mu = "3*X1-5", rho = 0.9, sigma = 1)
+df_neg <- generate_data(N = 1500, p = 10, true_mu = "3*X1-5", rho = -0.9, sigma = 1)
 
-a <- AC_plot(data = df_normal)
-b <- AC_plot(data = df_prop_overlap_bad)
-c <- AC_plot(data = df_prog_overlap_bad)
+a <- AC_plot(data = df_0)
+b <- AC_plot(data = df_pos)
+c <- AC_plot(data = df_neg)
 
-d <- propensity_histogram(data = df_normal)
-e <- propensity_histogram(data = df_prop_overlap_bad)
-f <- propensity_histogram(data = df_prog_overlap_bad)
+d <- propensity_histogram(data = df_0)
+e <- propensity_histogram(data = df_pos)
+f <- propensity_histogram(data = df_neg)
 
 ggarrange(a, b, c, d, e, f, ncol= 3, nrow = 2, heights = c(3, 2), labels = "AUTO")
 ```
@@ -73,11 +73,41 @@ ggarrange(a, b, c, d, e, f, ncol= 3, nrow = 2, heights = c(3, 2), labels = "AUTO
 dev.off()
 ```
 
-Figure 1 shows example assignment-control plots (A-C) and propensity score density histograms (D-F) for three simulated observational datasets. It is worth noting that the propensity score histogram for any dataset simply shows the marginal distribution of the data clouds shown in any assignment control plot. Panels A and D in Figure 1 depict the assignment-control plots and propensity histograms for a favorable observational dataset. There is substantial overlap between the treated and control subjects both in terms of their propensity for treatment and their likely outcome under the control assignment.  The correllation between treatment and prognosis is low.  A researcher viewing these diagnostic plots might be quite satisfied proceeding with their study.
+Figure 1 shows example assignment-control plots (A-C) and propensity score density histograms (D-F) for three simulated observational data sets. Notably, the marginal distribution of the propensity score is identical across the three simulated scenarios, and the corresponding propensity score histograms (D-F) are qualitatively equivalent.  However, panels A-C reveal that the three settings are in fact quite different. In setting A, treated individuals are no different from control individuals in terms of their prognosis.  This means that even a naive comparison of treated and control subjects may give an unbiased treatment effect estimate under suitable conditions.  In settings B and C, treatment and control outcomes should not be directly compared, because the results would give a biased estimate of treatment effect.  Moreover, the direction of the correlation between propensity and prognosis suggests the direction of the bias from a naive comparison: If the individuals with the \textit{worst} prognosis are the \textit{least} likely to be treated (Figure 1B), we are more likely to \textit{overestimate} the effectiveness of the treatment in producing a more positive outcome.  If the individuals with the \textit{worst} prognosis are the \textit{most} likely to be treated (Figure 1C), we are liable to err in the \textit{opposite} direction.  Future work might consider whether this correlation indicates a tendency toward bias not only in naive comparisons, but for adjustment or subclassification approaches in which the score models are imperfect or matchings of treated and control individuals are not exact.
 
-The pairs of panels (B,E) and (C,F) depict diagnostic plots for a pair of unfavorable scenarios.  In (B,E), the overlap between treated and control individuals is much worse -- some individuals in the dataset have a much higher probability of treatment (close to 1) than others, indicating that the randomization assumption of strongly ignorable treatment assignment may be violated.  A researcher might be wary in such a situation, but might consider proceeding with a study, perhaps with some amount of trimming on the propensity score spectrum to improve propensity score overlap.  (C, F) depicts an even worse possibility: the problems of propensity score overlap are the same, but prognosis and treatment assignment are also highly correllated.  In a clinical study, this might mean that only the sickest patients are ever given the treatment. In a nutritional study, this might mean that only the patients with the most excellent baseline health sign up for a diet of program of interest.  This is an even more serious problem because the treated individuals are systematically very divergent from the control individuals in terms of baseline variation predictive of both the potential outcome and the treatment assginment.  A researcher in this situation must be very wary. Importantly, just looking at the propensity score histograms (E and F) does not allow a researcher to differentiate between these two cases.  Only by visualizing the joint distribution of propensity and prognosis does the issue of highly correllated treatment assignment and prognosis come to light.
+## Figure 2: Other Notable Scenarios
 
-## Figure 2: Assignment-Control Plots and Matching
+```{r}
+n <- 1000
+df_hamburger <- tibble(X1 = rnorm(n), X2 = rnorm(n), X3 = rbinom(n, 1, 0.8)) %>%
+  mutate(prog = 3*X3 + X2/3,
+         prop = X1 - 1) %>%
+  mutate(t = as.factor(rbinom(n, 1, 1/(1 + exp(-prop)))))
+
+#n <- 500
+df_boomerang <- tibble(X1 = rnorm(n), X2 = rnorm(n)) %>%
+  mutate(prog = 4*X1/5) %>%
+  mutate(prop = -prog^2 -1 + X2/2) %>%
+  mutate(t = as.factor(rbinom(n, 1, 1/(1 + exp(-prop)))))
+```
+
+```{r fig.width=5.33, fig.height=5,}
+a <- AC_plot(df_hamburger, opaque_class = "none")
+b <- AC_plot(df_boomerang, opaque_class = "none")
+
+c <- propensity_histogram(data = df_hamburger)
+d <- propensity_histogram(data = df_boomerang)
+
+ggarrange(a, b, c, d, ncol= 2, nrow = 2, heights = c(3, 2), labels = "AUTO")
+```
+
+```{r}
+pdf("figures/Figure2.pdf",  width=5.33, height=3)
+ggarrange(b, a, ncol= 2, nrow = 1, labels = "AUTO")
+dev.off()
+```
+
+## Figure 3: Assignment-Control Plots and Matching
 
 ```{r}
 rho <- 0.5
@@ -111,7 +141,7 @@ ggarrange(a, b, c, d, ncol= 2, nrow = 2, labels = "AUTO" )
 
 
 ```{r}
-pdf("figures/Figure2.pdf",  width=6, height=6)
+pdf("figures/Figure3.pdf",  width=6, height=6)
 ggarrange(a, b, c, d, ncol= 2, nrow = 2, labels = "AUTO" )
 dev.off()
 ```
@@ -120,7 +150,7 @@ Assignment-Control Plots can also be a useful diagnostic tool for matching studi
 
 In Mahalanobis distance matching, all covariates are weighted equally in a statistical sense.  When there is an abundance of uninformative covariates (i.e. those which are neither associated with the outcome nor the treatment assignment.), Mahalanobis distance matching can select matches that may actually be quite distant in the assignment-control space [@aikens2020pilot]. On the other hand, propensity score matching optimizes directly for matches which are nearby in terms of the variation associated with the treatment (the "assignment" axis), but it is entirely agnostic to variation associated with the outcome.  This can result in high variance in estimated treatment effect [@king2016propensity].  Finally, the two caliper methods impose contraints on the matching option to ensure that matches are close in terms of propensity score (C) or both propensity and prognostic score (D).  This visualization illustrates the potential of these methods for minimizing bias (stemming from poor propensity score balance) and variace (stemming from poor prognostic score balance) in the treatment effect.
 
-## Figure 3: Randomization-Assignment-Control Plots
+## Figure 4: Randomization-Assignment-Control Plots
 
 [comment]: <> (I really should introduce IVs somewhere before this so readers aren't blindsided by this)
 
@@ -197,12 +227,12 @@ ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
 ```
 
 ```{r}
-pdf("figures/Figure3.pdf",  width=8, height=6)
+pdf("figures/Figure4.pdf",  width=8, height=6)
 ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
 dev.off()
 ```
 
-## Figure 4: Assignment-Control Plots and Unmeasured Confounding
+## Figure 5: Assignment-Control Plots and Unmeasured Confounding
 
 There is a wide and increasing variety of methods which use some articulation of propensity and prognosis to estimate a treatment effect. However, the theorems underlying the use of the propensity score and the theorems underlying the use of the prognostic score both depend on the absense of unmeasured confounding. Violations of this assumption have ramifications for a wide variety of causal inference approaches, and assignment-aontrol plots may be similarly misleading when unmeasured confounding is at play.
 
@@ -254,13 +284,13 @@ ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
 ```
 
 ```{r}
-pdf("figures/Figure4.pdf",  width=8, height=6)
+pdf("figures/Figure5.pdf",  width=8, height=6)
 ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
 dev.off()
 ```
 
 
-## Figures 5-6: Applied example
+## Figures 6-7: Applied example
 
 See /analyses/CABG/CABG_women.Rmd
 
