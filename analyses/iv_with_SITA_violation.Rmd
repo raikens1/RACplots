@@ -1,0 +1,239 @@
+---
+title: "IV with SITA violation"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "5/5/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, warning = FALSE, message = FALSE, echo = FALSE, fig.align = "center")
+library(RACplots)
+library(optmatch)
+library(DOS2)
+library(tidyverse)
+library(ggpubr)
+library(nearfar)
+
+theme_set(theme_light())
+
+# set some universal variables
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+k = 1
+```
+
+```{r}
+reformat_nf <- function(nf, N){
+  m_nf <- dim(nf$match[1])
+
+  nf_reformatted <- nf$match %>%
+    as_tibble() %>%
+    mutate(match_id = paste("1.", 1:nrow(.), sep = "")) %>%
+    gather("name", "index", -match_id) 
+
+  match <- tibble(index = 1:N) %>%
+    left_join(nf_reformatted) %>%
+    pull(match_id)
+  
+  names(match) <- 1:N
+  
+  return(match)
+}
+```
+
+# Setup
+
+In some of the IV set-up simulations, I've made a lot of concessions in order to keep things simple.  Let's allow ourselves to include all of the complexity we need without worrying about what a novice reader will understand.  Namely:
+
+- we will use nearfar matching
+- we will include unobserved confounding
+- we will suppose that there is a "pure" unmeasured IV which represents true randomizing variation, and we have access to a measured "impure" IV which is entangled with some (measured) confounding variation.
+
+We take the same set-up as before:
+
+\begin{align*}
+X_i &\sim Normal(0, I_{10}) \\
+T_i &\sim Bernoulli\left(\frac{1}{1 + exp(\phi(X_i))}\right) \\
+Y_i(0) &= \Psi(X_i) + \epsilon_i \\
+\epsilon_i &\sim N(0, 1) 
+\end{align*}
+
+where $\phi(X)$ and $\Psi(X)$ represent the true propensity and prognostic score functions, given by
+
+\begin{align*}
+    \phi(X_i, Z_i) &= c_1 X_{i1} + c_2 Z_{i} + \eta U - c_0,\\
+    \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2} + \eta U.
+\end{align*}
+
+Where $c_2$, $c_1$, $c_0$, $\eta$ and $\rho$ are constants.  Note that $U$ represents an unmeasured confounder with strength $\eta$. As before, Z is an instrumental variable in that it is unconfounded and has no effect on the outcome except via the treatment. For simplicity, we'll make $Z$ completely uncorrelated with the other covariates, so it is a "pure" IV.  See `iv_with_correlated_covariates.Rmd` for a set-up that changes this.
+
+\pagebreak
+
+## Visualizing IV designs
+
+Here are some pictures of mahalanobis distance matching and nearfar matching.  Below, this is what we might see if we had knowledge of $X$ and $Z$, in addition to the unobserved confounder $U$. 
+
+```{r generate data}
+nu <- 0.4
+
+# setting rho_z = 0 makes Z uncorrelated with any X's
+df_IV_xSITA <- generate_data_IV_xSITA(true_mu = "X1/2 + 2*Z + nu*U - 1.75", 
+                                      nu = nu, rho_z = 0) %>%
+  mutate(prop_naive = prop - nu * U,
+         prog_naive = prog - nu * U,
+         prop_naive_with_Z = prop - nu * U + 2*Z) %>%
+  select(-zeta) %>%
+  mutate(IV = Z)
+```
+
+```{r nearfar match}
+IVrange <- range(df_IV_xSITA$Z)[2] - range(df_IV_xSITA$Z)[1]
+
+nf <- opt_nearfar(dta = df_IV_xSITA, trt = "t", covs = c("X1", "X2"), iv = "Z",
+                  trt.type = "bin", max.time.seconds = 600)
+
+nf_match <- reformat_nf(nf, 2000)
+
+m <- sum(!is.na(nf_match))/2
+subsample_mids <- paste("1.", sample(1:m, 30), sep = "")
+nf_match_subsample <- ifelse(nf_match %in% subsample_mids, nf_match, NA)
+```
+
+
+```{r nearfar plots}
+nf_AC <- AC_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
+nf_CR <- CR_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
+nf_AR <- AR_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
+
+nf_RAC <- ggarrange(nf_AC, nf_CR, nf_AR, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Nearfar Match, Randomization-Control-Assignment-plots", size = 14))
+```
+
+
+```{r naive}
+naive_match <- pairmatch(t ~ X1 + X2 + IV, controls = 1, df_IV_xSITA)
+m_naive <- sum(!is.na(naive_match))/2
+subsample_mids_naive <- paste("1.", sample(1:m_naive, 30), sep = "")
+naive_match_subsample <- ifelse(naive_match %in% subsample_mids_naive, naive_match, NA)
+
+naive_AC <- AC_match_plot(data = df_IV_xSITA, match = naive_match_subsample)
+naive_CR <- CR_match_plot(data = df_IV_xSITA, match = naive_match_subsample)
+naive_AR <- AR_match_plot(data = df_IV_xSITA, match = naive_match_subsample)
+
+naive_RAC <- ggarrange(naive_AC, naive_CR, naive_AR, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Naive Match, Randomization-Assignment-Control plots", size = 14))
+```
+
+```{r mahal}
+mahal_match <- pairmatch(t ~ X1 + X2, controls = 1, df_IV_xSITA)
+m_mahal <- sum(!is.na(mahal_match))/2
+subsample_mids_mahal <- paste("1.", sample(1:m_mahal, 30), sep = "")
+mahal_match_subsample <- ifelse(mahal_match %in% subsample_mids_mahal, mahal_match, NA)
+
+mahal_AC <- AC_match_plot(data = df_IV_xSITA, match = mahal_match_subsample)
+mahal_CR <- CR_match_plot(data = df_IV_xSITA, match = mahal_match_subsample)
+mahal_AR <- AR_match_plot(data = df_IV_xSITA, match = mahal_match_subsample)
+
+mahal_RAC <- ggarrange(mahal_AC, mahal_CR, mahal_AR, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Mahalanobis Match on X1 and X2, Randomization-Assignment-Control-plots", size = 14))
+```
+
+Here is what not to do vs something that is okay.  Panel A is a naive design that matches on the measured covariates and the IV.  Panel B matches on the observed covariates, excluding the IV.
+
+```{r fig.height=6, fig.width=8}
+ggarrange(naive_RAC, mahal_RAC, ncol = 1, nrow = 2, labels = "AUTO")
+```
+
+Here's the actual figure in the current version of the paper.  Panel A matches on the observed covariates and excludes the IV, panel B is nearfar matching.
+
+```{r fig.width=8, fig.height=6}
+ggarrange(mahal_RAC, nf_RAC, ncol = 1, nrow = 2, labels = "AUTO")
+```
+
+```{r}
+pdf("figures/Figure6.pdf",  width=8, height=6)
+ggarrange(mahal_RAC, nf_RAC, ncol = 1, nrow = 2, labels = "AUTO")
+dev.off()
+```
+
+
+\pagebreak
+
+# Some initial thoughts.
+
+There is a lot to unpack here.  Here are some observations.
+
+A visual representation of unobserved confounding is that there is a "slant" in the match distances.  One individual in a match tends to be up and to the right (i.e. sicker and more likely to be treated) than the other.  The issue of bias arises when the top/right individual is more often the treated individual than the control individual.  
+
+**Does cleverly using the IV eliminate the "slant?" Actually, no.**  The slant is an inevitable byproduct of doing your best to match on measured confounding variation and variation important to the outcome.  If you have done a good job of matching on the confounding and prognostic variation that you do observe, all that should be left is the contribution of U.  But the contribution of U is never eliminated - that's just the nature of the data.
+
+So, how does cleverly using the IV help?  Visually, there are two components that lead to the bias: not only is there a "slant," **but, for bias, it must be true that treated individual is more often the one up and to right of the control**.  Nearfar matching helps by shifting _that_ paradigm: it helps mitigate against the likelihood that the treated individual is systematically the sicker one.  In this case, this is done by not using the treatment labels directly at all in the match and instead pairing encouraged individuals with discouraged ones.
+
+How does including an IV in a propensity score hurt?  The answer is related, but somewhat reversed.  The randomizing variation is normally your friend, even if you ignore it. **Randomizing variation is what makes it possible for the control individual to occaisionally be the uppper right one in a match.** This is why randomizing variation - measured and unmeasured - is protective against unobserved confounding.  When a researcher includes an IV in their propensity score - i.e. they use the IV, but incorrectly - they reduce the randomizing variation between their matched sets.  This _increases_ the probability that the upper right individual is the treated one, thus increasing the bias due to unmeasured confounding.
+
+# Sanity checking
+
+Let's run some diagnostics on the naive matching scheme (matching for nearness on the IV) compared to mahalanobis distance (ignoring the IV).  We hypothesize that the latter should be less biased, and that should correspond to matching schemes in which the treated individual has a lower tendency to be the upper individual in a pair.  This is what we see (n = 50 matches with each design.)
+
+```{r}
+# for a fair comparison, should I make mahal_match on X1+X2+X3?  I think one thing
+# that might be going on is that the naive match is worse on X1 and X2 because
+# it's matching on three covariates instead of two.
+check_bias <- function(){
+  df_IV_xSITA <- generate_data_IV_xSITA(true_mu = "X1/2 + 2*Z + nu*U - 1.75", 
+                                      nu = nu, rho_z = 0) %>%
+  mutate(prop_naive = prop - nu * U,
+         prog_naive = prog - nu * U,
+         prop_naive_with_Z = prop - nu * U + 2*Z) %>%
+  select(-zeta) %>%
+  mutate(IV = Z)
+  
+  naive_match <- pairmatch(t ~ X1 + X2 + IV, controls = 1, df_IV_xSITA)
+  
+  naive_df <- df_IV_xSITA %>%
+    mutate(match = naive_match) %>%
+    filter(!is.na(match)) %>%
+    arrange(match, t) %>%
+    group_by(match) %>%
+    summarize(diff = last(prog)-first(prog)) %>%
+    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), method = "naive")
+  
+  mahal_match <- pairmatch(t ~ X1 + X2 + X3, controls = 1, df_IV_xSITA)
+  
+  mahal_df <- df_IV_xSITA %>%
+    mutate(match = mahal_match) %>%
+    filter(!is.na(match)) %>%
+    arrange(match, t) %>%
+    group_by(match) %>%
+    summarize(diff = last(prog)-first(prog)) %>%
+    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), method = "mahal")
+  
+  return(rbind(mahal_df, naive_df))
+}
+```
+
+```{r}
+result <- replicate(50, check_bias(), simplify = FALSE) %>% bind_rows()
+```
+
+```{r}
+a <- ggplot(result, aes(x = method, y = bias, fill = method, color = method)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2) +
+  ylab("Bias from Difference-in-Means Estimate")
+
+b <- ggplot(result, aes(x = method, y = proportion_sicker_treated, fill = method, color = method)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2) +
+  ylab("Proportion of matches in which\n treated individual had greater prognosis")
+
+c <- ggplot(result, aes(x = proportion_sicker_treated, y = bias, color = method)) +
+  geom_point() +
+  ylab("Bias from Difference-in-Means Estimate")+
+  xlab("Proportion of matches in which\n treated individual had greater prognosis")
+
+ggarrange(a, b, common.legend = TRUE, labels = "AUTO")
+
+c
+```
+

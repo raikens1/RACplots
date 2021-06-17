@@ -29,7 +29,7 @@ AC_plot <- function(data, title = "", opaque_class = 1){
     theme(legend.position = "none", aspect.ratio=1,
           plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
-    xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+    xlab(expression(paste("Propensity, ", tilde(phi), "(x)", sep = "")))
 
   # if neither class is to be opaque, set alpha = 0.6
   if(opaque_class == "none"){
@@ -39,9 +39,9 @@ AC_plot <- function(data, title = "", opaque_class = 1){
 }
 
 
-#' Randomization-Control plot
+#' Control-Randomization plot
 #'
-#' Makes an RC plot of the data, with treated individuals in red and opaque,
+#' Makes a CR plot of the data, with treated individuals in red and opaque,
 #' control individuals translucent blue.  Assumes prognostic
 #' scores and IV are already in the data as \code{prog} and \code{IV}
 #'
@@ -50,7 +50,7 @@ AC_plot <- function(data, title = "", opaque_class = 1){
 #'
 #' @return a ggplot object
 #' @export
-RC_plot <- function(data, title = "", opaque_class = 1){
+CR_plot <- function(data, title = "", opaque_class = 1){
   if(opaque_class == "none"){
     plt_data <- data %>%
       mutate(a = FALSE) %>%
@@ -60,13 +60,13 @@ RC_plot <- function(data, title = "", opaque_class = 1){
       mutate(a = (t == opaque_class)) %>%
       dplyr::select(c(t, prog, IV, a))
   }
-  plt <- ggplot(data = plt_data, aes( x = IV, y = prog, group = t, color = t)) +
+  plt <- ggplot(data = plt_data, aes( x = prog, y = IV, group = t, color = t)) +
     geom_point(size = 1, aes(alpha = a)) +
     scale_color_brewer(palette="Set1", direction = -1) +
     ggtitle(title) +
     theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
-    ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
-    xlab(expression(paste("IV, ", zeta, sep = "")))
+    xlab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
+    ylab("IV, Z")
 
   # if neither class is to be opaque, set alpha = 0.6
   if(opaque_class == "none"){
@@ -77,9 +77,9 @@ RC_plot <- function(data, title = "", opaque_class = 1){
 }
 
 
-#' Randomization-Assignment plot
+#' Assignment-Randomization plot
 #'
-#' Makes an RA plot of the data, with treated individuals in red and opaque,
+#' Makes an AR plot of the data, with treated individuals in red and opaque,
 #' control individuals translucent blue.  Assumes propensity scores and IV are
 #' already in the data as \code{prop} and \code{IV}
 #'
@@ -88,7 +88,7 @@ RC_plot <- function(data, title = "", opaque_class = 1){
 #'
 #' @return a ggplot object
 #' @export
-RA_plot <- function(data, title = "", opaque_class = 1){
+AR_plot <- function(data, title = "", opaque_class = 1){
   if(opaque_class == "none"){
     plt_data <- data %>%
       mutate(a = FALSE) %>%
@@ -99,13 +99,13 @@ RA_plot <- function(data, title = "", opaque_class = 1){
       dplyr::select(c(t, prop, IV, a))
   }
 
-  plt <- ggplot(data = plt_data, aes( x = IV, y = prop, group = t, color = t)) +
+  plt <- ggplot(data = plt_data, aes( x = prop, y = IV, group = t, color = t)) +
     geom_point(size = 1, aes(alpha = a)) +
     scale_color_brewer(palette="Set1", direction = -1) +
     ggtitle(title) +
     theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
-    ylab(expression(paste("Propensity, ", phi, "(x)", sep = ""))) +
-    xlab(expression(paste("IV", sep = "")))
+    xlab(expression(paste("Propensity, ", tilde(phi), "(x)", sep = ""))) +
+    ylab("IV, Z")
 
   # if neither class is to be opaque, set alpha = 0.6
   if(opaque_class == "none"){

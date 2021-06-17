@@ -1,0 +1,82 @@
+---
+title: "Visualizing Matches with Bad Overlap"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "4/28/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, warning = FALSE, message = FALSE, echo = FALSE, fig.align = "center")
+library(RACplots)
+library(optmatch)
+library(DOS2)
+library(tidyverse)
+library(ggpubr)
+
+theme_set(theme_light())
+
+# set some universal variables
+prop_model = formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+prog_model = formula(y ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10)
+k = 1
+```
+
+# Set-up
+
+The results that follow depict several simulated datasets.  The primary generative model for these is based on @aikens2020pilot and is specified as follows:
+
+\begin{align*}
+X_i &\sim Normal(0, I_{10}) \\
+T_i &\sim Bernoulli\left(\frac{1}{1 + exp(\phi(X_i))}\right) \\
+Y_i(0) &= \Psi(X_i) + \epsilon_i \\
+\epsilon_i &\sim N(0, 1) 
+\end{align*}
+
+where $\phi(X)$ and $\Psi(X)$ represent the true propensity and prognostic score functions, given by
+
+\begin{align*}
+\phi(X_i) &= c_1 X_{i1} - c_0 \\
+\Psi(X_i) &= \rho X_{i1} + \sqrt{(1 - \rho^2)} X_{i2}.
+\end{align*}
+
+Where $c_1$, $c_0$, and $\rho$ are constants.  In particular, the form for the prognostic function above guarantees that $\rho = Corr(\phi(X), \Psi(X))$.
+
+```{r}
+set.seed(123)
+
+rho <- 0.85
+
+df_overlap_poor <- generate_data(N = 1000, p = 10, true_mu = "4*X1/3 - 2", rho = rho) 
+
+prop_match <- pairmatch(t ~ prop, controls = 1, df_overlap_poor )
+m_prop <- sum(!is.na(prop_match))/2
+subsample_mids_prop <- paste("1.", sample(1:m_prop, 40), sep = "")
+prop_match_subsample <- ifelse(prop_match %in% subsample_mids_prop, prop_match, NA)
+
+
+b <- AC_match_plot(data = df_overlap_poor, match = prop_match_subsample, title = "Poor Overlap")
+```
+
+```{r}
+rho <- 0.85
+
+df_overlap_good <- generate_data(N = 1000, p = 10, true_mu = "2*X1/3 - 2", rho = rho) 
+
+prop_match <- pairmatch(t ~ prop, controls = 1, df_overlap_good )
+m_prop <- sum(!is.na(prop_match))/2
+subsample_mids_prop <- paste("1.", sample(1:m_prop, 40), sep = "")
+prop_match_subsample <- ifelse(prop_match %in% subsample_mids_prop, prop_match, NA)
+
+
+a <- AC_match_plot(data = df_overlap_good, match = prop_match_subsample, title = "Good Overlap")
+```
+
+```{r fig.height=3, fig.width=6}
+ggarrange(a, b, ncol = 2, nrow = 1)
+```
+```{r}
+pdf("figures/poor_overlap.pdf",  width=6, height=3)
+ggarrange(a, b, ncol = 2, nrow = 1)
+dev.off()
+```
+

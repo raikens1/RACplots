@@ -1,0 +1,19 @@
+---
+title: "Supplementary Figures"
+author: "Assignment-Control Plots: A Visual Companion for Causal Inference Study Design"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+
+library(tidyverse)
+library(ggpubr)
+theme_set(theme_light())
+```
+
+
+```{r}
+
+```
+

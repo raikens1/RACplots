@@ -91,14 +91,14 @@ df_boomerang <- tibble(X1 = rnorm(n), X2 = rnorm(n)) %>%
   mutate(t = as.factor(rbinom(n, 1, 1/(1 + exp(-prop)))))
 ```
 
-```{r fig.width=5.33, fig.height=5,}
+```{r fig.width=5.33, fig.height=5}
 a <- AC_plot(df_hamburger, opaque_class = "none")
 b <- AC_plot(df_boomerang, opaque_class = "none")
 
 c <- propensity_histogram(data = df_hamburger)
 d <- propensity_histogram(data = df_boomerang)
 
-ggarrange(a, b, c, d, ncol= 2, nrow = 2, heights = c(3, 2), labels = "AUTO")
+ggarrange(a, b, ncol= 2, nrow = 1, labels = "AUTO")
 ```
 
 ```{r}
@@ -150,88 +150,44 @@ Assignment-Control Plots can also be a useful diagnostic tool for matching studi
 
 In Mahalanobis distance matching, all covariates are weighted equally in a statistical sense.  When there is an abundance of uninformative covariates (i.e. those which are neither associated with the outcome nor the treatment assignment.), Mahalanobis distance matching can select matches that may actually be quite distant in the assignment-control space [@aikens2020pilot]. On the other hand, propensity score matching optimizes directly for matches which are nearby in terms of the variation associated with the treatment (the "assignment" axis), but it is entirely agnostic to variation associated with the outcome.  This can result in high variance in estimated treatment effect [@king2016propensity].  Finally, the two caliper methods impose contraints on the matching option to ensure that matches are close in terms of propensity score (C) or both propensity and prognostic score (D).  This visualization illustrates the potential of these methods for minimizing bias (stemming from poor propensity score balance) and variace (stemming from poor prognostic score balance) in the treatment effect.
 
-## Figure 4: Randomization-Assignment-Control Plots
+```{r}
+set.seed(123)
 
-[comment]: <> (I really should introduce IVs somewhere before this so readers aren't blindsided by this)
+rho <- 0.85
 
-@bhattacharya2007instrumental suggest that measured covariates that are valid instruments should *not* be included in propensity score models, since this may actually *increase* the bias and variance of the causal effect estimates in the absence of strong ignorability.  Intuitively, if some covariate captures some aspect of randomization or outcome-independent encouragement, we would actually like our treatment and control observations to be *far apart* in terms of the encouragement they recieve [@baiocchi2012near].  This supports the idea that subjects in an observational study might be best described by two separate quantities summarizing the baseline variation associated with the assignment mechanism: one "randomization" axis summarizing variation associated with the treatment assignment but unrelated to the outcome (i.e. a continuous instrumental variable or a combination of instruments), and one "assignment" axis summarizing variation associated with both the treatment assignment and the outcome (i.e. the propensity score).  This separation is important because observational study designs might do well to treat these two aspects of baseline variation differently. In particular, while matched subjects should ideally be very close in their propensity scores, they should ideally be very *distant* in terms of instrumental variation [@baiocchi2012near]. 
- 
-As an illustrative example, we consider the simulation set-up as before, except that now a new measured covariate $Z$, is present as an instrumental variable (IV):
+df_overlap_poor <- generate_data(N = 1000, p = 10, true_mu = "4*X1/3 - 2", rho = rho) 
 
-\begin{align*}
-    \phi(X_i, Z_i) &= c_1 X_{i1} + c_2 Z_{i} - c_0,\\
-    \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}.
-\end{align*}
-
-Where $c_2$, $c_1$, $c_0$, and $\rho$ are constants.  And we take $Z_i$ to be
-
-$$Z_i = \rho_z X_{i1} + \sqrt{1-\rho_z^2}\zeta_i$$
-
-Where the $\zeta_i$ are iid standard normal and completely independent of all other covariates, and $\rho_z$ is a constant between 0 and 1.  In this setup, $\zeta$ might be thought of as the "pure" IV, while $Z$ represents an IV that - while still a valid instrumental variable - is only independent of the outcome given the treatment assignment *and* the observed covariates.  Importantly, while $Z$ is measured, the "pure" IV $\zeta$ is unmeasured.
-
-```{r nearfar matching}
-library(nearfar)
-# Seeds
-# Some patterning, but not beautiful: 123, 125
-# Pretty good: 124
-set.seed(124)
-rho <- 0.5
-IV_df <- generate_data_IV(N = 1000, p = 10, true_mu = "X1/2 + Z/2 - 3.25", rho = rho, rho_z = 0.2) %>%
-  mutate(IV = zeta)
-
-IVrange <- range(IV_df$Z)[2] - range(IV_df$Z)[1]
+prop_match <- pairmatch(t ~ prop, controls = 1, df_overlap_poor )
+m_prop <- sum(!is.na(prop_match))/2
+subsample_mids_prop <- paste("1.", sample(1:m_prop, 40), sep = "")
+prop_match_subsample <- ifelse(prop_match %in% subsample_mids_prop, prop_match, NA)
 
 
-nf <- opt_nearfar(dta = IV_df, trt = "t", covs = c("X1", "X2"), iv = "Z",
-                  trt.type = "bin", adjust.IV = TRUE, cutp.range = c(sd(IV_df$Z)*1.5, IVrange),
-                  max.time.seconds = 300)
+b <- AC_match_plot(data = df_overlap_poor, match = prop_match_subsample, title = "Propensity Score Matching,\nPoor Overlap")
+
+rho <- 0.85
+
+df_overlap_good <- generate_data(N = 1000, p = 10, true_mu = "2*X1/3 - 2", rho = rho) 
+
+prop_match <- pairmatch(t ~ prop, controls = 1, df_overlap_good )
+m_prop <- sum(!is.na(prop_match))/2
+subsample_mids_prop <- paste("1.", sample(1:m_prop, 40), sep = "")
+prop_match_subsample <- ifelse(prop_match %in% subsample_mids_prop, prop_match, NA)
+
+
+a <- AC_match_plot(data = df_overlap_good, match = prop_match_subsample, title = "Propensity Score Matching,\nGood Overlap")
+```
+
+
+```{r fig.width=5.33, fig.height=3}
+ggarrange(a, b, ncol = 2, nrow = 1)
 ```
 
 ```{r}
-reformat_nf <- function(nf, N){
-  m_nf <- dim(nf$match[1])
-
-  nf_reformatted <- nf$match %>%
-    as_tibble() %>%
-    mutate(match_id = paste("1.", 1:nrow(.), sep = "")) %>%
-    gather("name", "index", -match_id) 
-
-  match <- tibble(index = 1:N) %>%
-    left_join(nf_reformatted) %>%
-    pull(match_id)
-  
-  names(match) <- 1:N
-  
-  return(match)
-}
-```
-
-```{r fig.height=6, fig.width=8}
-IV_df$IV <- IV_df$zeta
-
-nf_match <- reformat_nf(nf, 1000)
-
-m <- sum(!is.na(nf_match))/2
-subsample_mids <- paste("1.", sample(1:m, 30), sep = "")
-nf_match_subsample <- ifelse(nf_match %in% subsample_mids, nf_match, NA)
-
-a <- AC_filter_plot(data = IV_df, match = nf_match)
-b <- RC_filter_plot(data = IV_df, match = nf_match)
-c <- RA_filter_plot(data = IV_df, match = nf_match)
-
-d <- AC_match_plot(data = IV_df, match = nf_match_subsample)
-e <- RC_match_plot(data = IV_df, match = nf_match_subsample)
-f <- RA_match_plot(data = IV_df, match = nf_match_subsample)
-
-ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
-```
-
-```{r}
-pdf("figures/Figure4.pdf",  width=8, height=6)
-ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
+pdf("figures/Figure4.pdf",  width=6, height=3)
+ggarrange(a, b, ncol= 2, nrow = 1, labels = "AUTO" )
 dev.off()
 ```
-
 ## Figure 5: Assignment-Control Plots and Unmeasured Confounding
 
 There is a wide and increasing variety of methods which use some articulation of propensity and prognosis to estimate a treatment effect. However, the theorems underlying the use of the propensity score and the theorems underlying the use of the prognostic score both depend on the absense of unmeasured confounding. Violations of this assumption have ramifications for a wide variety of causal inference approaches, and assignment-aontrol plots may be similarly misleading when unmeasured confounding is at play.
@@ -239,7 +195,7 @@ There is a wide and increasing variety of methods which use some articulation of
 Figure 5 illustrates the behavior of assignment control plots in a scenario with unobserved confounding.  We add to our data-generating set-up an unobserved confounder, $U$, such that:
 
 \begin{align*}
-    \phi(X_i) &= c_1 X_{i1} -  \eta U - c_0,\\
+    \phi(X_i) &= c_1 X_{i1} +  \eta U - c_0,\\
     \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2} + \eta U.
 \end{align*}
 
@@ -290,7 +246,123 @@ dev.off()
 ```
 
 
-## Figures 6-7: Applied example
+## Figure 6: Randomization-Assignment-Control Plots
+
+@bhattacharya2007instrumental suggest that measured covariates that are valid instruments should *not* be included in propensity score models, since this may actually *increase* the bias and variance of the causal effect estimates in the absence of strong ignorability.  Intuitively, if some covariate captures some aspect of randomization or outcome-independent encouragement, we would actually like our treatment and control observations to be *far apart* in terms of the encouragement they recieve [@baiocchi2012near].  This supports the idea that subjects in an observational study might be best described by two separate quantities summarizing the baseline variation associated with the assignment mechanism: one "randomization" axis summarizing variation associated with the treatment assignment but unrelated to the outcome (i.e. a continuous instrumental variable or a combination of instruments), and one "assignment" axis summarizing variation associated with both the treatment assignment and the outcome (i.e. the propensity score).  This separation is important because observational study designs might do well to treat these two aspects of baseline variation differently. In particular, while matched subjects should ideally be very close in their propensity scores, they should ideally be very *distant* in terms of instrumental variation [@baiocchi2012near]. 
+ 
+As an illustrative example, we consider the simulation set-up as before, except that now a new measured covariate $Z$, is present as an instrumental variable (IV):
+
+\begin{align*}
+    \phi(X_i, Z_i) &= c_1 X_{i1} + c_2 Z_{i} - c_0,\\
+    \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}.
+\end{align*}
+
+Where $c_2$, $c_1$, $c_0$, and $\rho$ are constants.  And we take $Z_i$ to be
+
+$$Z_i = \rho_z X_{i1} + \sqrt{1-\rho_z^2}\zeta_i$$
+
+Where the $\zeta_i$ are iid standard normal and completely independent of all other covariates, and $\rho_z$ is a constant between 0 and 1.  In this setup, $\zeta$ might be thought of as the "pure" IV, while $Z$ represents an IV that - while still a valid instrumental variable - is only independent of the outcome given the treatment assignment *and* the observed covariates.  Importantly, while $Z$ is measured, the "pure" IV $\zeta$ is unmeasured. 
+
+```{r nearfar matching}
+library(nearfar)
+# seeds
+# 124 okay
+set.seed(125)
+rho <- 0.5
+IV_df <- generate_data_IV(N = 1000, p = 10, true_mu = "X1/2 + 2*Z - 1.75", rho = rho, rho_z = 0.2) %>%
+  mutate(IV = zeta)
+
+AC_plot(IV_df)
+
+IVrange <- range(IV_df$Z)[2] - range(IV_df$Z)[1]
+
+nf <- opt_nearfar(dta = IV_df, trt = "t", covs = c("X1", "X2"), iv = "Z",
+                  trt.type = "bin", adjust.IV = TRUE, cutp.range = c(sd(IV_df$Z)*1.5, IVrange),
+                  max.time.seconds = 600)
+```
+
+```{r}
+reformat_nf <- function(nf, N){
+  m_nf <- dim(nf$match[1])
+
+  nf_reformatted <- nf$match %>%
+    as_tibble() %>%
+    mutate(match_id = paste("1.", 1:nrow(.), sep = "")) %>%
+    gather("name", "index", -match_id) 
+
+  match <- tibble(index = 1:N) %>%
+    left_join(nf_reformatted) %>%
+    pull(match_id)
+  
+  names(match) <- 1:N
+  
+  return(match)
+}
+```
+
+```{r fig.height=6, fig.width=8}
+IV_df$IV <- IV_df$zeta
+
+nf_match <- reformat_nf(nf, 1000)
+
+m <- sum(!is.na(nf_match))/2
+subsample_mids <- paste("1.", sample(1:m, 30), sep = "")
+nf_match_subsample <- ifelse(nf_match %in% subsample_mids, nf_match, NA)
+
+a <- AC_filter_plot(data = IV_df, match = nf_match)
+b <- CR_filter_plot(data = IV_df, match = nf_match)
+c <- AR_filter_plot(data = IV_df, match = nf_match)
+
+d <- AC_match_plot(data = IV_df, match = nf_match_subsample)
+e <- CR_match_plot(data = IV_df, match = nf_match_subsample)
+f <- AR_match_plot(data = IV_df, match = nf_match_subsample)
+
+ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
+```
+
+Time to consider something different for this visualization.
+
+```{r}
+prop_match <- pairmatch(t ~ prop, controls = 1, IV_df)
+m_prop <- sum(!is.na(prop_match))/2
+subsample_mids_prop <- paste("1.", sample(1:m_prop, 30), sep = "")
+prop_match_subsample <- ifelse(prop_match %in% subsample_mids_prop, prop_match, NA)
+
+# mahalanobis match
+mahal_dist <- match_on(formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10),
+                       method = "mahalanobis", data = IV_df)
+m_match <- pairmatch(mahal_dist, controls = 1, IV_df)
+m_mahal <- sum(!is.na(m_match))/2
+subsample_mids_mahal <- paste("1.", sample(1:m_mahal, 30), sep = "")
+mahal_match_subsample <- ifelse(m_match %in% subsample_mids_mahal, m_match, NA)
+
+```
+
+```{r fig.width=8, fig.height=6}
+a <- AC_match_plot(data = IV_df, match = prop_match_subsample)
+b <- CR_match_plot(data = IV_df, match = prop_match_subsample)
+c <- AR_match_plot(data = IV_df, match = prop_match_subsample)
+
+d <- AC_match_plot(data = IV_df, match = nf_match_subsample)
+e <- CR_match_plot(data = IV_df, match = nf_match_subsample)
+f <- AR_match_plot(data = IV_df, match = nf_match_subsample)
+
+top_row <- ggarrange(a, b, c, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Propensity Score Match, Randomization-Control-Assignment-plots", size = 14))
+
+bottom_row <- ggarrange(d, e, f, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Nearfar Match, Randomization-Control-Assignment-plots", size = 14))
+
+ggarrange(top_row, bottom_row, ncol = 1, nrow = 2, labels = "AUTO")
+```
+
+```{r}
+pdf("figures/Figure6.pdf",  width=8, height=6)
+ggarrange(top_row, bottom_row, ncol = 1, nrow = 2, labels = "AUTO")
+dev.off()
+```
+
+## Figures 7-8: Applied example
 
 See /analyses/CABG/CABG_women.Rmd
 

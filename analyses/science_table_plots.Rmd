@@ -1,0 +1,150 @@
+---
+title: "Science Table plots"
+author: "Rachael Caelie (Rocky) Aikens"
+date: "6/7/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.align = "center",
+	message = TRUE,
+	warning = FALSE
+)
+library(tidyverse)
+library(ggpubr)
+theme_set(theme_classic())
+```
+
+# Set up
+
+A quantity inherently related to the prognostic score is the true potential outcome under the control assignment.  Note that these are not the same.  By it's informal definition, the prognostic score is the conditional expectation of the control potential outcome, conditional on the observed covariates, $E[Y(0)|X]$. Contrastingly, the control potential outcomes are the actual individual values $\{Y_i(0)\}_{i = 1}^n$.  While a treatment-focused prognostic score, for example $E[Y(1)|X]$, is less common, we might make a similar comparison between this quantity and the treated potential outcomes, $\{Y_i(1)\}_{i = 1}^n$. The full suite of both treated and control potential outcomes in all study individuals is often said to make up the "Science Table." 
+
+Here, we consider what can be learned from considering these potential outcomes visually, as "Science Table plots."
+
+## A visual representation of individual treatment effects
+
+Here we have the basic Science Table:
+
+```{r, fig.height=4, fig.width=4}
+toy_data <- data.frame(y0 = c(1, 4), y1 = c(3, 2),
+                       barcolor = c("green", "red"), label = c("i", "j"))
+
+b <- seq(0, 2*pi, by=0.001)
+circ <- data.frame(y0=2.5*cos(b) + 2.5,
+                   y1=2.5*sin(b) + 2.5)
+circ_pos <- circ %>%
+  filter(y1>y0) %>%
+  mutate(circcolor = "green")
+circ_neg <- circ %>%
+  filter(y0>y1) %>%
+  mutate(circcolor = "red")
+
+
+plt <- ggplot(toy_data, aes(x = y0, y = y1)) + 
+  geom_polygon(dat = circ_pos, alpha = 0.1, fill = "#57C4AD") +
+  geom_polygon(dat = circ_neg, alpha = 0.1, fill = "#DB4325") +
+  geom_point() +
+  geom_text(aes(label = label), nudge_x = 0.1) +
+  geom_linerange(aes(ymin = y0, ymax = y1, color = barcolor))+
+  scale_color_manual(values = c("#006164", "#DB4325")) +
+  geom_segment(x = 0, y = 0, xend = 2, yend = 2) +
+  geom_segment(x = 3, y = 3, xend = 5, yend = 5) +
+  xlim(c(0, 5)) + ylim(c(0, 5)) +
+  theme(axis.ticks = element_blank(), axis.text = element_blank(), legend.position = "none") +
+  ylab("Y(1)") +
+  xlab("Y(0)") +
+  annotate("text", x = 2, y = 4, label = "Positive Effect", size= 5, color = "#006164") +
+  annotate("text", x = 3, y = 1, label = "Negative Effect", size= 5, color = "#DB4325") +
+  annotate("text", x = 2.5, y = 2.5, label = "No Effect", size= 5, angle = 45) +
+  annotate("text", x = 0.8, y = 2, label = expression(tau[i]), size= 6, parse = TRUE) +
+  annotate("text", x = 3.8, y = 3, label = expression(tau[j]), size= 6, parse = TRUE)
+
+plt
+```
+
+An individual’s treatment effect is visualized by the difference between their horizontal and vertical coordinates on a Science Table plot. Individuals on the diagonal have no treatment effect. Individuals above and below the diagonal have positive and negative treatment effects, respectively, and a greater distance from the diagonal corresponds to a greater response to treatment. An interesting observation is that the individual treatment effect for an observation is the signed vertical distance to the diagonal (or, equivalently, the negative signed horizontal distance to the diagonal).
+
+# Treatment Effects on a Science Table plot
+
+We can now re-interpret the sample average treament effect, visually, as the average signed distance between all observations and the diagonal.  For example, the plots below show a fairly constant positive and negative treatment effects.
+
+```{r}
+st_plot <- function(data, color = TRUE) {
+  if (color == TRUE){
+    data <- mutate(data, color = y1 > y0)
+    data <- rbind(data, c(NA, NA, FALSE))
+    pbase <- ggplot(data, aes(x = y0, y = y1, color = color))
+  } else{
+    pbase <- ggplot(data, aes(x = y0, y = y1))
+  }
+  
+  plt <- pbase + 
+  geom_point(alpha = 0.7) +
+  scale_color_manual(values = c("#DB4325", "#006164")) +
+  geom_abline(slope = 1, intercept = 0) +
+  xlim(c(0, 5)) + ylim(c(0, 5)) +
+  theme(axis.ticks = element_blank(), axis.text = element_blank(), legend.position = "none") +
+  ylab("Y(1)") +
+  xlab("Y(0)") +
+  coord_fixed()
+
+plt
+}
+```
+
+```{r}
+n <- 100
+```
+
+
+```{r}
+pos_effect <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0  +  1.25 + rnorm(n = n, sd = 0.1))
+neg_effect <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0  -  1.25 + rnorm(n = n, sd = 0.1))
+
+ggarrange(st_plot(pos_effect), st_plot(neg_effect), labels = "AUTO")
+
+```
+
+
+# Treatment effect heterogeneity
+
+A major focus in current causal inference literature is treatment effect heterogeneity. A Science Table plot allows us to illustrate different kinds of heterogeneity in treatment effect.
+
+```{r fig.height=3, fig.width = 8}
+mult_effect <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = exp(0.5*y0)-0.75 + rnorm(n = n, sd = 0.1))
+
+sweet_spot <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = ifelse(y0 > 2 & y0 < 3, y0 + 1.25, y0) + rnorm(n, sd = 0.1))
+
+high_variance <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0 + rnorm(n, sd = 1))
+
+ggarrange(st_plot(mult_effect), st_plot(sweet_spot), st_plot(high_variance), ncol = 3, nrow = 1, labels = "AUTO")
+```
+Panel A depicts a scenario in which individuals with higher $Y(0)$ tend to respond better to treatment. The opposite relationship is also possible: in which individuals with lower $Y(0)$ are more responsive.  B describes an interesting scenario in which there is a treatment "sweet spot" of $Y(0)$ at which certain individuals benefit (Erin Craig and Rob Tibshirani are working on methods for "sweet spot" treatment effect estimation).
+
+What about panel 3?  Does panel 3 show treatment effect heterogeneity?  Arguably yes, it does: the individual level treatment effects are variable.  The difference between C and the two prior panels is that treatment response in panel C is not correllated with the control potential outcome, $Y(0)$.  Perhaps the heterogeneity in treatment response in panel C can be explained by some other baseline covariate independent of $Y(0)$. Perhaps this covariate is measurable - and thus potentially actionable.  Or perhaps it is unmeasurable, and so simply acts to add random noise in treatment response.
+
+# Variability in the treatment effect response
+
+I incluse this last example just to point out that there is more to treatment effect heterogeneity than what I've walked through above.  In the plot below, response to treatment is highly variable, and there is a correllation between $Y(0)$ and treatment effect variability.  This points out that more than the average treatment effect - or even the conditional average treatment effect - can be important.  In the scenario below, individuals with low $Y(0)$ consistently respond moderately well to treatment, while individuals with high $Y(0)$ sometimes respond very well and sometimes very badly.  The average treatment effect, however, is the same at level sets of $Y(0)$.  Thus, even if we knew the conditional average treatment effect with respect to, for example, a very good prognostic score, this might not tell the entire story.
+
+```{r}
+n <- 500
+
+variable_variance <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0 + 1 + rnorm(n, sd = y0/4))
+
+st_plot(variable_variance)
+```
+
+
+
+
+
+

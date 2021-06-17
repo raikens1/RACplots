@@ -137,3 +137,57 @@ f <- RA_match_plot(data = df, match = nf_match_subsample)
 ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
 ```
 
+## IV with SITA violation
+
+Let's see if there's an interesting visualization here of IV designs without SITA.
+
+```{r}
+nu <- 0.2
+
+df_IV_xSITA <- generate_data_IV_xSITA(true_mu = "X1/2 + 2*Z + nu*U - 1.75") %>%
+  mutate(prop_naive = prop - nu * U,
+         prog_naive = prog - nu * U) %>%
+  mutate(IV = zeta)
+```
+
+```{r}
+IVrange <- range(df_IV_xSITA$Z)[2] - range(df_IV_xSITA$Z)[1]
+
+nf <- opt_nearfar(dta = df_IV_xSITA, trt = "t", covs = c("X1", "X2"), iv = "Z",
+                  trt.type = "bin", adjust.IV = TRUE, cutp.range = c(sd(df_IV_xSITA$Z)*1.5, IVrange),
+                  max.time.seconds = 600)
+
+nf_match <- reformat_nf(nf, 1000)
+
+m <- sum(!is.na(nf_match))/2
+subsample_mids <- paste("1.", sample(1:m, 30), sep = "")
+nf_match_subsample <- ifelse(nf_match %in% subsample_mids, nf_match, NA)
+```
+
+
+```{r}
+d <- AC_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
+e <- CR_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
+f <- AR_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
+
+bottom_row <- ggarrange(d, e, f, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Nearfar Match, Randomization-Control-Assignment-plots", size = 14))
+```
+
+
+```{r}
+prop_match <- pairmatch(t ~ prop_naive, controls = 1, df_IV_xSITA)
+m_prop <- sum(!is.na(prop_match))/2
+subsample_mids_prop <- paste("1.", sample(1:m_prop, 30), sep = "")
+prop_match_subsample <- ifelse(prop_match %in% subsample_mids_prop, prop_match, NA)
+
+a <- AC_match_plot(data = df_IV_xSITA, match = prop_match_subsample)
+b <- CR_match_plot(data = df_IV_xSITA, match = prop_match_subsample)
+c <- AR_match_plot(data = df_IV_xSITA, match = prop_match_subsample)
+
+top_row <- ggarrange(a, b, c, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Propensity Score Match, Randomization-Control-Assignment-plots", size = 14))
+
+top_row
+```
+
