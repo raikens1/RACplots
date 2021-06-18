@@ -14,6 +14,7 @@ library(optmatch)
 library(DOS2)
 library(tidyverse)
 library(ggpubr)
+library(nearfar)
 
 theme_set(theme_light())
 
@@ -209,8 +210,8 @@ rho <- 0.2
 #simulate data
 df <- generate_xSITA_data(N = 2000, p = 10, nu = nu, rho = rho, sigma = 1)
 
-# mahalanobis match
-mahal_dist <- match_on(prop_model, method = "mahalanobis", data = df)
+# mahalanobis match on X1 + X2
+mahal_dist <- match_on(t ~ X1 + X2, method = "mahalanobis", data = df)
 m_match <- pairmatch(mahal_dist, controls = k, df)
 ```
 
@@ -221,67 +222,47 @@ naive_df <- df %>%
            prop = X1/3-3)
 
 naive_prop_match <- pairmatch(t ~ prop, controls = k, naive_df)
-mahal_caliper_dist <- addcaliper(mahal_dist, z = naive_df$t, p = naive_df$prop, caliper = 0.1)
-mahal_caliper_dist <- addcaliper(mahal_caliper_dist, z = naive_df$t, p = naive_df$prog, caliper = 0.1)
-m_caliper_match <- pairmatch(mahal_caliper_dist, controls = k, naive_df)
 ```
 
-```{r,  fig.width=8, fig.height= 6, fig.cap="Assignment-control plots for three matching schemes on a dataset with unobserved confounding.  A-C depict the assignment-control space as ascertained without knowledge of the unobserved confounder.  D-F depict the true assignment-control space and the true match distances."}
+```{r,  fig.width=5.5, fig.height= 5.5, fig.cap="Assignment-control plots for three matching schemes on a dataset with unobserved confounding.  A-C depict the assignment-control space as ascertained without knowledge of the unobserved confounder.  D-F depict the true assignment-control space and the true match distances."}
 
-a <- AC_match_plot(naive_df, m_match, title = "Mahalanobis Match")
-b <- AC_match_plot(naive_df, naive_prop_match, title = "Propensity Match")
-c <- AC_match_plot(naive_df, m_caliper_match, title = "Mahalanobis Match, Joint Calipers")
+a <- AC_match_plot(naive_df, naive_prop_match, title = "Propensity Match")
+b <- AC_match_plot(naive_df, m_match, title = "Mahalanobis Match on X1, X2")
 
-d <- AC_match_plot(df, m_match, title = "Mahalanobis Match")
-e <- AC_match_plot(df, naive_prop_match, title = "Propensity Match")
-f <- AC_match_plot(df, m_caliper_match, title = "Mahalanobis Match, Joint Calipers")
+c <- AC_match_plot(df, naive_prop_match, title = "Propensity Match")
+d <- AC_match_plot(df, m_match, title = "Mahalanobis Match on X1, X2")
 
-ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
+ggarrange(a,b,c,d,  ncol= 2, nrow = 2, labels = "AUTO")
 ```
 
 ```{r}
-pdf("figures/Figure5.pdf",  width=8, height=6)
-ggarrange(a,b,c,d, e, f,  ncol= 3, nrow = 2, labels = "AUTO" )
+pdf("figures/Figure5.pdf",  width=5.5, height=5.5)
+ggarrange(a,b,c,d,  ncol= 2, nrow = 2, labels = "AUTO")
 dev.off()
 ```
 
 
 ## Figure 6: Randomization-Assignment-Control Plots
 
-@bhattacharya2007instrumental suggest that measured covariates that are valid instruments should *not* be included in propensity score models, since this may actually *increase* the bias and variance of the causal effect estimates in the absence of strong ignorability.  Intuitively, if some covariate captures some aspect of randomization or outcome-independent encouragement, we would actually like our treatment and control observations to be *far apart* in terms of the encouragement they recieve [@baiocchi2012near].  This supports the idea that subjects in an observational study might be best described by two separate quantities summarizing the baseline variation associated with the assignment mechanism: one "randomization" axis summarizing variation associated with the treatment assignment but unrelated to the outcome (i.e. a continuous instrumental variable or a combination of instruments), and one "assignment" axis summarizing variation associated with both the treatment assignment and the outcome (i.e. the propensity score).  This separation is important because observational study designs might do well to treat these two aspects of baseline variation differently. In particular, while matched subjects should ideally be very close in their propensity scores, they should ideally be very *distant* in terms of instrumental variation [@baiocchi2012near]. 
- 
-As an illustrative example, we consider the simulation set-up as before, except that now a new measured covariate $Z$, is present as an instrumental variable (IV):
+We take the same set-up as before:
 
 \begin{align*}
-    \phi(X_i, Z_i) &= c_1 X_{i1} + c_2 Z_{i} - c_0,\\
-    \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2}.
+X_i &\sim Normal(0, I_{10}) \\
+T_i &\sim Bernoulli\left(\frac{1}{1 + exp(\phi(X_i))}\right) \\
+Y_i(0) &= \Psi(X_i) + \epsilon_i \\
+\epsilon_i &\sim N(0, 1) 
 \end{align*}
 
-Where $c_2$, $c_1$, $c_0$, and $\rho$ are constants.  And we take $Z_i$ to be
+where $\phi(X)$ and $\Psi(X)$ represent the true propensity and prognostic score functions, given by
 
-$$Z_i = \rho_z X_{i1} + \sqrt{1-\rho_z^2}\zeta_i$$
+\begin{align*}
+    \phi(X_i, Z_i) &= c_1 X_{i1} + c_2 Z_{i} + \eta U - c_0,\\
+    \Psi(X_i) &=\rho X_{i1} + \sqrt{(1-\rho^2)}X_{i2} + \eta U.
+\end{align*}
 
-Where the $\zeta_i$ are iid standard normal and completely independent of all other covariates, and $\rho_z$ is a constant between 0 and 1.  In this setup, $\zeta$ might be thought of as the "pure" IV, while $Z$ represents an IV that - while still a valid instrumental variable - is only independent of the outcome given the treatment assignment *and* the observed covariates.  Importantly, while $Z$ is measured, the "pure" IV $\zeta$ is unmeasured. 
+Where $c_2$, $c_1$, $c_0$, $\eta$ and $\rho$ are constants.  Note that $U$ represents an unmeasured confounder with strength $\eta$. As before, Z is an instrumental variable in that it is unconfounded and has no effect on the outcome except via the treatment. For simplicity, we'll make $Z$ completely uncorrelated with the other covariates, so it is a "pure" IV.  See `iv_with_correlated_covariates.Rmd` for a set-up that changes this.
 
-```{r nearfar matching}
-library(nearfar)
-# seeds
-# 124 okay
-set.seed(125)
-rho <- 0.5
-IV_df <- generate_data_IV(N = 1000, p = 10, true_mu = "X1/2 + 2*Z - 1.75", rho = rho, rho_z = 0.2) %>%
-  mutate(IV = zeta)
-
-AC_plot(IV_df)
-
-IVrange <- range(IV_df$Z)[2] - range(IV_df$Z)[1]
-
-nf <- opt_nearfar(dta = IV_df, trt = "t", covs = c("X1", "X2"), iv = "Z",
-                  trt.type = "bin", adjust.IV = TRUE, cutp.range = c(sd(IV_df$Z)*1.5, IVrange),
-                  max.time.seconds = 600)
-```
-
-```{r}
+```{r reformat_nf}
 reformat_nf <- function(nf, N){
   m_nf <- dim(nf$match[1])
 
@@ -300,65 +281,63 @@ reformat_nf <- function(nf, N){
 }
 ```
 
-```{r fig.height=6, fig.width=8}
-IV_df$IV <- IV_df$zeta
+```{r generate data}
+nu <- 0.4
 
-nf_match <- reformat_nf(nf, 1000)
+# setting rho_z = 0 makes Z uncorrelated with any X's
+df_IV_xSITA <- generate_data_IV_xSITA(true_mu = "X1/2 + 2*Z + nu*U - 1.75", 
+                                      nu = nu, rho_z = 0) %>%
+  mutate(prop_naive = prop - nu * U,
+         prog_naive = prog - nu * U,
+         prop_naive_with_Z = prop - nu * U + 2*Z) %>%
+  select(-zeta) %>%
+  mutate(IV = Z)
+```
+
+```{r nearfar match}
+IVrange <- range(df_IV_xSITA$Z)[2] - range(df_IV_xSITA$Z)[1]
+
+nf <- opt_nearfar(dta = df_IV_xSITA, trt = "t", covs = c("X1", "X2"), iv = "Z",
+                  trt.type = "bin", max.time.seconds = 600)
+
+nf_match <- reformat_nf(nf, 2000)
 
 m <- sum(!is.na(nf_match))/2
 subsample_mids <- paste("1.", sample(1:m, 30), sep = "")
 nf_match_subsample <- ifelse(nf_match %in% subsample_mids, nf_match, NA)
-
-a <- AC_filter_plot(data = IV_df, match = nf_match)
-b <- CR_filter_plot(data = IV_df, match = nf_match)
-c <- AR_filter_plot(data = IV_df, match = nf_match)
-
-d <- AC_match_plot(data = IV_df, match = nf_match_subsample)
-e <- CR_match_plot(data = IV_df, match = nf_match_subsample)
-f <- AR_match_plot(data = IV_df, match = nf_match_subsample)
-
-ggarrange(a, b, c, d, e, f, ncol = 3, nrow =2, labels = "AUTO")
 ```
 
-Time to consider something different for this visualization.
 
-```{r}
-prop_match <- pairmatch(t ~ prop, controls = 1, IV_df)
-m_prop <- sum(!is.na(prop_match))/2
-subsample_mids_prop <- paste("1.", sample(1:m_prop, 30), sep = "")
-prop_match_subsample <- ifelse(prop_match %in% subsample_mids_prop, prop_match, NA)
+```{r nearfar plots}
+nf_AC <- AC_match_plot(data = df_IV_xSITA, match = nf_match_subsample, is_RAC = TRUE)
+nf_CR <- CR_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
+nf_AR <- AR_match_plot(data = df_IV_xSITA, match = nf_match_subsample)
 
-# mahalanobis match
-mahal_dist <- match_on(formula(t ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10),
-                       method = "mahalanobis", data = IV_df)
-m_match <- pairmatch(mahal_dist, controls = 1, IV_df)
-m_mahal <- sum(!is.na(m_match))/2
-subsample_mids_mahal <- paste("1.", sample(1:m_mahal, 30), sep = "")
-mahal_match_subsample <- ifelse(m_match %in% subsample_mids_mahal, m_match, NA)
-
-```
-
-```{r fig.width=8, fig.height=6}
-a <- AC_match_plot(data = IV_df, match = prop_match_subsample)
-b <- CR_match_plot(data = IV_df, match = prop_match_subsample)
-c <- AR_match_plot(data = IV_df, match = prop_match_subsample)
-
-d <- AC_match_plot(data = IV_df, match = nf_match_subsample)
-e <- CR_match_plot(data = IV_df, match = nf_match_subsample)
-f <- AR_match_plot(data = IV_df, match = nf_match_subsample)
-
-top_row <- ggarrange(a, b, c, ncol = 3, nrow = 1) %>% 
-  annotate_figure(top = text_grob("Propensity Score Match, Randomization-Control-Assignment-plots", size = 14))
-
-bottom_row <- ggarrange(d, e, f, ncol = 3, nrow = 1) %>% 
+nf_RAC <- ggarrange(nf_AC, nf_CR, nf_AR, ncol = 3, nrow = 1) %>% 
   annotate_figure(top = text_grob("Nearfar Match, Randomization-Control-Assignment-plots", size = 14))
+```
 
-ggarrange(top_row, bottom_row, ncol = 1, nrow = 2, labels = "AUTO")
+```{r mahal}
+mahal_match <- pairmatch(t ~ X1 + X2, controls = 1, df_IV_xSITA)
+m_mahal <- sum(!is.na(mahal_match))/2
+subsample_mids_mahal <- paste("1.", sample(1:m_mahal, 30), sep = "")
+mahal_match_subsample <- ifelse(mahal_match %in% subsample_mids_mahal, mahal_match, NA)
+
+mahal_AC <- AC_match_plot(data = df_IV_xSITA, match = mahal_match_subsample, is_RAC = TRUE)
+mahal_CR <- CR_match_plot(data = df_IV_xSITA, match = mahal_match_subsample)
+mahal_AR <- AR_match_plot(data = df_IV_xSITA, match = mahal_match_subsample)
+
+mahal_RAC <- ggarrange(mahal_AC, mahal_CR, mahal_AR, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Mahalanobis Match on X1 and X2, Randomization-Assignment-Control-plots", size = 14))
+```
+
+```{r fig.height=6, fig.width=8}
+ggarrange(mahal_RAC, nf_RAC, ncol = 1, nrow = 2, labels = "AUTO")
 ```
 
 ```{r}
 pdf("figures/Figure6.pdf",  width=8, height=6)
-ggarrange(top_row, bottom_row, ncol = 1, nrow = 2, labels = "AUTO")
+ggarrange(mahal_RAC, nf_RAC, ncol = 1, nrow = 2, labels = "AUTO")
 dev.off()
 ```
 

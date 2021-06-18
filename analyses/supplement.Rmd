@@ -5,15 +5,127 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+knitr::opts_chunk$set(cache=TRUE, warning = FALSE, message = FALSE, echo = FALSE, fig.align = "center")
 
 library(tidyverse)
 library(ggpubr)
+library(optmatch)
+library(RACplots)
+
 theme_set(theme_light())
+```
+
+```{r generate data}
+set.seed(123)
+nu <- 0.4
+
+# setting rho_z = 0 makes Z uncorrelated with any X's
+df_IV_xSITA <- generate_data_IV_xSITA(true_mu = "X1/2 + 2*Z + nu*U - 1.75", 
+                                      nu = nu, rho_z = 0) %>%
+  mutate(prop_naive = prop - nu * U,
+         prog_naive = prog - nu * U,
+         prop_naive_with_Z = prop - nu * U + 2*Z) %>%
+  select(-zeta) %>%
+  mutate(IV = Z)
+```
+
+```{r naive}
+naive_match <- pairmatch(t ~ X1 + X2 + IV, controls = 1, df_IV_xSITA)
+m_naive <- sum(!is.na(naive_match))/2
+subsample_mids_naive <- paste("1.", sample(1:m_naive, 30), sep = "")
+naive_match_subsample <- ifelse(naive_match %in% subsample_mids_naive, naive_match, NA)
+
+naive_AC <- AC_match_plot(data = df_IV_xSITA, match = naive_match_subsample, is_RAC = TRUE)
+naive_CR <- CR_match_plot(data = df_IV_xSITA, match = naive_match_subsample)
+naive_AR <- AR_match_plot(data = df_IV_xSITA, match = naive_match_subsample)
+
+naive_RAC <- ggarrange(naive_AC, naive_CR, naive_AR, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob("Randomization-Assignment-Control plots, Naive match", size = 14))
+```
+
+```{r mahal}
+mahal_match <- pairmatch(t ~ X1 + X2, controls = 1, df_IV_xSITA)
+m_mahal <- sum(!is.na(mahal_match))/2
+subsample_mids_mahal <- paste("1.", sample(1:m_mahal, 30), sep = "")
+mahal_match_subsample <- ifelse(mahal_match %in% subsample_mids_mahal, mahal_match, NA)
+
+mahal_AC <- AC_match_plot(data = df_IV_xSITA, match = mahal_match_subsample, is_RAC = TRUE)
+mahal_CR <- CR_match_plot(data = df_IV_xSITA, match = mahal_match_subsample)
+mahal_AR <- AR_match_plot(data = df_IV_xSITA, match = mahal_match_subsample)
+
+mahal_RAC <- ggarrange(mahal_AC, mahal_CR, mahal_AR, ncol = 3, nrow = 1) %>% 
+  annotate_figure(top = text_grob(", Randomization-Assignment-Control-plots, Standard match", size = 14))
+```
+
+```{r fig.height=6, fig.width=8, fig.cap="Randomization-Assignment-Control plots for two matching schemes.  Data is generated according to the set-up in Figure 6 from the main text. In the naive match (A), observations are paired based on X1, X2 and Z, using Mahalanobis Distance.  In the standard match (B), observations are paired based on X1, X2, and X3, where X3 is an uninformative covariate following the same marginal distribution as Z.  When subjects are matched for nearness in the IV, randomizing variation within pairs is reduced, so the treated individual is more often the upper individual in the pair"}
+ggarrange(naive_RAC, mahal_RAC, ncol = 1, nrow = 2, labels = "AUTO")
 ```
 
 
 ```{r}
+# naive match: Mahalanobis distance on X1 + X2 + Z
+# mahal match: Mahalanobis distance on X1 + X2 + X3
+# X3 is an uninformative covariate with the same distribution as Z, 
+# so that the matching schemes are more easily comprable.
+check_bias <- function(){
+  df_IV_xSITA <- generate_data_IV_xSITA(true_mu = "X1/2 + 2*Z + nu*U - 1.75", 
+                                      nu = nu, rho_z = 0, sigma = 0.2) %>%
+  mutate(prop_naive = prop - nu * U,
+         prog_naive = prog - nu * U,
+         prop_naive_with_Z = prop - nu * U + 2*Z) %>%
+  select(-zeta) %>%
+  mutate(IV = Z)
+  
+  naive_match <- pairmatch(t ~ X1 + X2 + IV, controls = 1, df_IV_xSITA)
+  
+  naive_df <- df_IV_xSITA %>%
+    mutate(match = naive_match) %>%
+    filter(!is.na(match)) %>%
+    arrange(match, t) %>%
+    group_by(match) %>%
+    summarize(diff = last(y)-first(y)) %>%
+    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), Method = "Naive")
+  
+  mahal_match <- pairmatch(t ~ X1 + X2 + X3, controls = 1, df_IV_xSITA)
+  
+  mahal_df <- df_IV_xSITA %>%
+    mutate(match = mahal_match) %>%
+    filter(!is.na(match)) %>%
+    arrange(match, t) %>%
+    group_by(match) %>%
+    summarize(diff = last(y)-first(y)) %>%
+    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), Method = "Standard")
+  
+  return(rbind(mahal_df, naive_df))
+}
+```
 
+```{r}
+result <- replicate(100, check_bias(), simplify = FALSE) %>% bind_rows()
+```
+
+```{r fig.height=7, fig.width=7, fig.cap="Simulation results (100 replicates) comparing two matching schemes in a scenario with an IV. Data is generated according to the set-up in Figure 6 from the main text, where Y(1) = Y(0) (i.e. there is no treatment effect). In the naive approach, observations are paired based on X1, X2 and Z, using Mahalanobis Distance.  In the standard match, observations are paired based on X1, X2, and X3, where X3 is an uninformative covariate following the same marginal distribution as Z. The naive approach is more biased than the approach which excludes the IV from the matching (A), and in the naive approach, a greater proportion of matches select a treated individual with a higher expected Y(0) than the matched control (B).  Matches in which a greater proportion of the matches select a treated individual with higher expected outcome than the matched control tend to be more biased (C)."}
+a <- ggplot(result, aes(x = Method, y = bias, fill = Method, color = Method)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.15, size = 1, alpha = 0.7) +
+  ylab("Bias \nfrom Difference-in-Means Estimate") +
+  scale_fill_manual(values = c("#C2A5CF", "#A6DBA0")) +
+  scale_color_manual(values = c("#762A83", "#1B7837"))
+
+b <- ggplot(result, aes(x = Method, y = proportion_sicker_treated, fill = Method, color = Method)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.15, size = 1, alpha = 0.7) +
+  ylab("Proportion of matches in which\n treated individual had greater prognosis") +
+  scale_fill_manual(values = c("#C2A5CF", "#A6DBA0")) +
+  scale_color_manual(values = c("#762A83", "#1B7837"))
+
+c <- ggplot(result, aes(x = proportion_sicker_treated, y = bias, color = Method)) +
+  geom_point(alpha = 0.60) +
+  ylab("Bias \nfrom Difference-in-Means Estimate")+
+  xlab("Proportion of matches in which\n treated individual had greater prognosis") +
+  scale_color_manual(values = c("#762A83", "#1B7837"))
+
+ggarrange(ggarrange(a, b, common.legend = TRUE, labels = "AUTO", legend = "bottom"),
+          ggarrange(c, labels = "C", legend = "none"), nrow = 2)
 ```
 

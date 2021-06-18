@@ -13,6 +13,7 @@ library(DOS2)
 library(tidyverse)
 library(ggpubr)
 library(nearfar)
+library(RColorBrewer)
 
 theme_set(theme_light())
 
@@ -74,6 +75,7 @@ Where $c_2$, $c_1$, $c_0$, $\eta$ and $\rho$ are constants.  Note that $U$ repre
 Here are some pictures of mahalanobis distance matching and nearfar matching.  Below, this is what we might see if we had knowledge of $X$ and $Z$, in addition to the unobserved confounder $U$. 
 
 ```{r generate data}
+set.seed(123)
 nu <- 0.4
 
 # setting rho_z = 0 makes Z uncorrelated with any X's
@@ -150,13 +152,6 @@ Here's the actual figure in the current version of the paper.  Panel A matches o
 ggarrange(mahal_RAC, nf_RAC, ncol = 1, nrow = 2, labels = "AUTO")
 ```
 
-```{r}
-pdf("figures/Figure6.pdf",  width=8, height=6)
-ggarrange(mahal_RAC, nf_RAC, ncol = 1, nrow = 2, labels = "AUTO")
-dev.off()
-```
-
-
 \pagebreak
 
 # Some initial thoughts.
@@ -176,9 +171,10 @@ How does including an IV in a propensity score hurt?  The answer is related, but
 Let's run some diagnostics on the naive matching scheme (matching for nearness on the IV) compared to mahalanobis distance (ignoring the IV).  We hypothesize that the latter should be less biased, and that should correspond to matching schemes in which the treated individual has a lower tendency to be the upper individual in a pair.  This is what we see (n = 50 matches with each design.)
 
 ```{r}
-# for a fair comparison, should I make mahal_match on X1+X2+X3?  I think one thing
-# that might be going on is that the naive match is worse on X1 and X2 because
-# it's matching on three covariates instead of two.
+# naive match: Mahalanobis distance on X1 + X2 + Z
+# mahal match: Mahalanobis distance on X1 + X2 + X3
+# X3 is an uninformative covariate with the same distribution as Z, 
+# so that the matching schemes are more easily comprable.
 check_bias <- function(){
   df_IV_xSITA <- generate_data_IV_xSITA(true_mu = "X1/2 + 2*Z + nu*U - 1.75", 
                                       nu = nu, rho_z = 0) %>%
@@ -196,7 +192,7 @@ check_bias <- function(){
     arrange(match, t) %>%
     group_by(match) %>%
     summarize(diff = last(prog)-first(prog)) %>%
-    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), method = "naive")
+    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), Method = "Naive")
   
   mahal_match <- pairmatch(t ~ X1 + X2 + X3, controls = 1, df_IV_xSITA)
   
@@ -206,7 +202,7 @@ check_bias <- function(){
     arrange(match, t) %>%
     group_by(match) %>%
     summarize(diff = last(prog)-first(prog)) %>%
-    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), method = "mahal")
+    summarize(bias = mean(diff), proportion_sicker_treated = mean(diff > 0), Method = "Standard")
   
   return(rbind(mahal_df, naive_df))
 }
@@ -216,24 +212,28 @@ check_bias <- function(){
 result <- replicate(50, check_bias(), simplify = FALSE) %>% bind_rows()
 ```
 
-```{r}
-a <- ggplot(result, aes(x = method, y = bias, fill = method, color = method)) +
+```{r fig.height=6, fig.width=6}
+a <- ggplot(result, aes(x = Method, y = bias, fill = Method, color = Method)) +
   geom_boxplot() +
-  geom_jitter(width = 0.2) +
-  ylab("Bias from Difference-in-Means Estimate")
+  geom_jitter(width = 0.15, size = 1, alpha = 0.7) +
+  ylab("Bias \nfrom Difference-in-Means Estimate") +
+  scale_fill_manual(values = c("#C2A5CF", "#A6DBA0")) +
+  scale_color_manual(values = c("#762A83", "#1B7837"))
 
-b <- ggplot(result, aes(x = method, y = proportion_sicker_treated, fill = method, color = method)) +
+b <- ggplot(result, aes(x = Method, y = proportion_sicker_treated, fill = Method, color = Method)) +
   geom_boxplot() +
-  geom_jitter(width = 0.2) +
-  ylab("Proportion of matches in which\n treated individual had greater prognosis")
+  geom_jitter(width = 0.15, size = 1, alpha = 0.7) +
+  ylab("Proportion of matches in which\n treated individual had greater prognosis") +
+  scale_fill_manual(values = c("#C2A5CF", "#A6DBA0")) +
+  scale_color_manual(values = c("#762A83", "#1B7837"))
 
-c <- ggplot(result, aes(x = proportion_sicker_treated, y = bias, color = method)) +
-  geom_point() +
-  ylab("Bias from Difference-in-Means Estimate")+
-  xlab("Proportion of matches in which\n treated individual had greater prognosis")
+c <- ggplot(result, aes(x = proportion_sicker_treated, y = bias, color = Method)) +
+  geom_point(alpha = 0.65) +
+  ylab("Bias \nfrom Difference-in-Means Estimate")+
+  xlab("Proportion of matches in which\n treated individual had greater prognosis") +
+  scale_color_manual(values = c("#762A83", "#1B7837"))
 
-ggarrange(a, b, common.legend = TRUE, labels = "AUTO")
-
-c
+ggarrange(ggarrange(a, b, common.legend = TRUE, labels = "AUTO", legend = "bottom"),
+          ggarrange(c, labels = "C", legend = "none"), nrow = 2)
 ```
 

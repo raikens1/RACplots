@@ -5,7 +5,7 @@
 #'
 #' @return
 #' @export
-AC_match_plot <- function(data, match, title = ""){
+AC_match_plot <- function(data, match, title = "", is_RAC = FALSE){
   n_pairs <- sum(!is.na(match))/2
 
   plt_data <- data %>%
@@ -35,6 +35,11 @@ AC_match_plot <- function(data, match, title = ""){
           plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
     xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+
+  if(is_RAC){
+    plt <- plt +
+      xlab(expression(paste("Propensity, ", tilde(phi), "(x)", sep = "")))
+  }
 
   return(plt)
 }
@@ -113,7 +118,7 @@ AR_match_plot <- function(data, match, title = ""){
                  color =  "black", group = NA, linetype = "dashed") +
     ggtitle(title)+
     theme(legend.position = "none", aspect.ratio=1, plot.title = element_text(hjust = 0.5, size = 9))+
-    xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+    xlab(expression(paste("Propensity, ", tilde(phi), "(x)", sep = "")))
     ylab(expression(paste("IV", sep = "")))
 
   return(plt)

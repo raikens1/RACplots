@@ -7,7 +7,7 @@
 #'
 #' @return
 #' @export
-AC_filter_plot <- function(data, match, title = ""){
+AC_filter_plot <- function(data, match, title = "", is_RAC = FALSE){
   n_pairs <- sum(!is.na(match))/2
 
   plt_data <- data %>%
@@ -23,6 +23,11 @@ AC_filter_plot <- function(data, match, title = ""){
           plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
     xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
+
+  if(is_RAC){
+    plt <- plt +
+      xlab(expression(paste("Propensity, ", tilde(phi), "(x)", sep = "")))
+  }
 
   return(plt)
 }

@@ -8,10 +8,12 @@
 #' @param title a title for the plot
 #' @param opaque_class 1, 0 or "none".  Specifies which class should be opaque
 #'   and which should be translucent
+#' @param is_RAC is this an RAC plot? If so, propensity axis will be represented
+#'   with tilde(phi) to indicate that an IV is measured, but excluded.
 #'
 #' @return a ggplot object
 #' @export
-AC_plot <- function(data, title = "", opaque_class = 1){
+AC_plot <- function(data, title = "", opaque_class = 1, is_RAC = FALSE){
   if(opaque_class == "none"){
     plt_data <- data %>%
       mutate(a = FALSE) %>%
@@ -29,11 +31,15 @@ AC_plot <- function(data, title = "", opaque_class = 1){
     theme(legend.position = "none", aspect.ratio=1,
           plot.title = element_text(hjust = 0.5, size = 9))+
     ylab(expression(paste("Prognosis, ", Psi, "(x)", sep = ""))) +
-    xlab(expression(paste("Propensity, ", tilde(phi), "(x)", sep = "")))
+    xlab(expression(paste("Propensity, ", phi, "(x)", sep = "")))
 
   # if neither class is to be opaque, set alpha = 0.6
   if(opaque_class == "none"){
     plt <- plt + scale_alpha_ordinal(range = c(0.6, 0.6))
+  }
+  if(is_RAC){
+    plt <- plt +
+      xlab(expression(paste("Propensity, ", tilde(phi), "(x)", sep = "")))
   }
   return(plt)
 }
