@@ -1,6 +1,6 @@
 .Rproj.user
 data/*
-analyses/*_cache
+*_cache
 analyses/*files
 .Rhistory
 .DS_Store
