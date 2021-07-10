@@ -1,0 +1,187 @@
+---
+title: "Science Table Plots"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	fig.align = "center",
+	message = FALSE,
+	warning = FALSE
+)
+library(tidyverse)
+library(ggpubr)
+theme_set(theme_classic())
+```
+
+
+## Visualizing potential outcomes with Science Table plots
+
+Randomization-assignment-control plots begin to suggest how the treatment assignment mechanism might be broken down into functionally different components.  Here, we consider one way of breaking down the outcomes into two components: the control potential outcome, and the treated potential outcome.  Doing so requires a shift in perspective.  Until now, we've discussed the potential outcomes in terms of the prognostic score, which summarizes _baseline variation_ important to the control potential outcome.  This section will focus on the potential outcomes _themselves_, and for the moment we will shift the focus away from baseline variation.  
+
+The complete set of treated and control potential outcomes for all study individuals is sometimes refered to as the "Science Table" [cite Rubin]. Figure 1 contains a schematic of a visual representation of this concept, which we call a "science table plot." Fundamental to the problem of causal inference is that the complete science table is unobservable, so visaulizing the science table directly is only possible in theoretical and educational settings.  However, the science table plot offers an interesting graphical view of the treatment effect at an individual and sample-wide level.
+
+```{r schematic, fig.height=4, fig.width=4}
+toy_data <- data.frame(y0 = c(1, 4), y1 = c(3, 2),
+                       barcolor = c("green", "red"), label = c("i", "j"))
+
+b <- seq(0, 2*pi, by=0.001)
+circ <- data.frame(y0=2.5*cos(b) + 2.5,
+                   y1=2.5*sin(b) + 2.5)
+circ_pos <- circ %>%
+  filter(y1>y0) %>%
+  mutate(circcolor = "green")
+circ_neg <- circ %>%
+  filter(y0>y1) %>%
+  mutate(circcolor = "red")
+
+
+schematic <- ggplot(toy_data, aes(x = y0, y = y1)) + 
+  geom_polygon(dat = circ_pos, alpha = 0.1, fill = "#57C4AD") +
+  geom_polygon(dat = circ_neg, alpha = 0.1, fill = "#DB4325") +
+  geom_point() +
+  geom_text(aes(label = label), nudge_x = 0.1) +
+  geom_linerange(aes(ymin = y0, ymax = y1, color = barcolor))+
+  scale_color_manual(values = c("#006164", "#DB4325")) +
+  geom_segment(x = 0, y = 0, xend = 2, yend = 2) +
+  geom_segment(x = 3, y = 3, xend = 5, yend = 5) +
+  xlim(c(0, 5)) + ylim(c(0, 5)) +
+  theme(axis.ticks = element_blank(), axis.text = element_blank(), legend.position = "none") +
+  ylab("Y(1)") +
+  xlab("Y(0)") +
+  annotate("text", x = 2, y = 4, label = "Positive Effect", size= 5, color = "#006164") +
+  annotate("text", x = 3, y = 1, label = "Negative Effect", size= 5, color = "#DB4325") +
+  annotate("text", x = 2.5, y = 2.5, label = "No Effect", size= 5, angle = 45) +
+  annotate("text", x = 0.8, y = 2, label = expression(tau[i]), size= 6, parse = TRUE) +
+  annotate("text", x = 3.8, y = 3, label = expression(tau[j]), size= 6, parse = TRUE) +
+  coord_fixed()
+```
+
+```{r st_plot function}
+st_plot <- function(data, color = TRUE, title = "") {
+  if (color == TRUE){
+    data <- mutate(data, color = y1 > y0)
+    data <- rbind(data, c(NA, NA, FALSE))
+    pbase <- ggplot(data, aes(x = y0, y = y1, color = color))
+  } else{
+    pbase <- ggplot(data, aes(x = y0, y = y1))
+  }
+  
+  plt <- pbase + 
+  geom_point(alpha = 0.7, size = 0.8) +
+  scale_color_manual(values = c("#DB4325", "#006164")) +
+  geom_abline(slope = 1, intercept = 0) +
+  xlim(c(0, 5)) + ylim(c(0, 5)) +
+  theme(axis.ticks = element_blank(), axis.text = element_blank(), legend.position = "none") +
+  ylab("Y(1)") +
+  xlab("Y(0)") +
+  coord_fixed() 
+  
+  # special case if Fisher's null is true
+  if(all(data$y0 == data$y1, na.rm = TRUE)){
+    plt <- plt + scale_color_manual(values = "bisque4")
+  }
+  
+  # add title if needed
+  if(!is.null(title)){
+    plt <- plt + ggtitle(title) + theme(plot.title = element_text(size = 10))
+  }
+
+plt
+}
+```
+
+```{r}
+n <- 100
+```
+
+```{r}
+set.seed(123)
+pos_effect <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0  +  1.25 + rnorm(n = n, sd = 0.1))
+neg_effect <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0  -  1.25 + rnorm(n = n, sd = 0.1))
+
+neyman_null <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0 + rnorm(n = n, sd = 0.25))
+
+fisher_null <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0)
+
+pos <- st_plot(pos_effect, title = "Positive effect")
+neg <- st_plot(neg_effect, title = "Negative effect")
+neyman <- st_plot(neyman_null, title = "Neyman's null")
+fisher <- st_plot(fisher_null, title = "Fisher's sharp null")
+```
+
+```{r fig.height=6.5, fig.width=6.5, fig.cap = "Science table plots. When a subject is graphically plotted according to their potential outcomes, the vertical distance to the diagonal represents their individual treatment effect, and different plot regions correspond to a positive, negative, or neutral response to treatment (A). Panels (A) and (B) depict a relatively homogenous positive or negative additive treatment effect, respectively.  In Neyman's null hypothesis, treatment effect is zero on averge, but there may still be some heterogeneity in individual responses (C). Fisher's sharp null (D) supposes that all individual level treatment effects are zero: graphically, this means all individual points on a science table plot lie on the diagonal."}
+effects <- ggarrange(pos, neg, ncol = 1, nrow = 2, labels = c("B", "C"))
+nulls <- ggarrange(neyman, fisher, ncol = 2, nrow = 1, labels = c("D", "E"))
+
+layout1 <- ggarrange(schematic, effects, nulls,
+          nrow = 2, ncol = 2,
+          heights = c(3, 2), widths = c(3, 2),
+          labels = c("A"))
+
+examples <- ggarrange(pos, neg, neyman, fisher, ncol = 4, nrow = 2, labels = c("B", "C", "D", "E"))
+
+layout2 <- ggarrange(schematic, examples, nrow = 2, ncol = 1, heights = c(4, 4), labels = c("A") )
+
+layout2
+```
+
+In a science table plot, individuals are depicted according to their treatment and control potential outcomes.  In this setting, a subject's individual treatment effect is graphically represented as their vertical distance to the diagonal line representing $Y(0) = Y(1)$ (Figure 1A), and different areas of the plot represent positive, negative, or neutral responses to treatment.  Average treatment effect, then is the average distance of all points to the diagonal. Figure 1A-B. Visualizes two commonly assumed scenarios for treatment response: a relatively homogenous additive treatment effect, and a relatively homogenous negative one.  Science Table plots offer an interesting visualization of the two major "null" hypotheses of causal inference.  Figure 1C illustrates Neyman's null hypothesis: the average treatment effect is zero, but individual treatment effects may still vary.  This is in stark contrast to Fisher's sharp null (Figure 1D), in treated and control potential outcomes are identical for all individuals in the study.  This juxtaposition in particular may be an intuitive illustration in educational settings.
+
+```{r fig.height=4, fig.width = 8, fig.cap="Science table plots depicting a variety of treatment response scenarios"}
+set.seed(123)
+n <- 200
+
+mult_effect <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0*2 + rnorm(n = n, sd = 0.1))
+
+sweet_spot <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = ifelse(y0 > 2 & y0 < 3, y0 + 1.25, y0) + rnorm(n, sd = 0.1))
+
+healthy_benefit <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = exp(0.5*y0)-0.75 + rnorm(n = n, sd = 0.1))
+
+sicker_benefit <- data.frame(y0 = seq(0, 5, length.out = 200)) %>%
+  mutate(y1 = y0 + 2/(y0 + 1) - 0.4 + rnorm(n = n, sd = 0.1))
+
+tobit_effect <- data.frame(y1 = rnorm(n = n, 2.5)) %>%
+  rowwise() %>%
+  mutate(y0 = max(y1 - 1 + rnorm(n = n, sd = 0.1), 1)) 
+
+few_large_responses <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0 + rnorm(n, sd = 0.1)) %>%
+  mutate(y1 = ifelse(rbinom(n, 1, 0.09), y1 + 1.5, y1))
+
+high_variance <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0 + rnorm(n, sd = 1))
+
+variable_variance <- data.frame(y0 = rnorm(n = n, 2.5)) %>%
+  mutate(y1 = y0 + rnorm(n, sd = y0^2/20))
+
+ggarrange(st_plot(mult_effect, title = "Multiplicative effect"),
+          st_plot(healthy_benefit, title = "\"Healthy\" benefit"),
+          st_plot(sicker_benefit, title = "\"Sicker\" benefit"),
+          st_plot(sweet_spot, title = "\"Sweet Spot\""),
+          st_plot(tobit_effect, title = "Tobit effects"),
+          st_plot(few_large_responses, title = "Rare strong responses"),
+          st_plot(high_variance, title = "High variation"),
+          st_plot(variable_variance, title = "Variation depends on Y(0)"),
+          ncol = 4, nrow = 2, labels = "AUTO")
+
+
+```
+
+A science table plot can illustrate a variety of hypothetical models for treatment response, graphically depicting different forms of treatment effect heterogeneity.  A few examples are shown in Figure 2.  Multiplicative effects (Figure 2A) and tobit effects (Figure 2E) are two other treatment effect models occaisionally discussed in the literature.  Many discussions of treatment effect heterogeneity center on the hypothesis that treatment response correllates in some way with the control potential outcome, $Y(0)$: Perhaps "healthy" individuals with higher $Y(0)$ have a greater treatment response (Figure 2B), or perhaps "sicker" individuals with lower $Y(0)$ stand to gain more from treatment (Figure 2C).  In other scenarios, one might suggest that there is a "sweet spot" for treatment, perhaps representing individuals who have intermediate potential outcomes (Figure 2D). 
+
+Figure 2F-H suggest other scenarios which may be more subtle and difficult to identify using common statistical approaches.  Figure 2F depicts a scenario in which many individuals do not substantially benefit from treatment, but there are occaisional large responses to treatment.  This possibility is discussed further by Rosenbaum [cite DoOS] in his consideration of the National Supported Work Experiment, the subject of Lalonde's 1986 study [cite lalonde]. Figure 2G suggests a different possible pattern for heterogeneity. Treatment response is highly heterogeneous, but not in a way that is associated with $Y(0)$. While treatment effect is zero on average, many people stand to benefit from treatment, and many people may respond quite badly. It's possible that this heterogeneity can be explained in part by some measurable covariate independent of $Y(0)$. If so, it may be possible to identify subjects who stand to benefit from treatment and those who will not. Otherwise, treatment response may be highly unpredictable, posing a difficult problem for implementation.  Figure 2H considers a final possibility.  In this scenario, the average treatment effect is zero at all levels of $Y(0)$, but treatment response heterogeniety itself is correlated with the control potential outcomes.  Individuals with some $Y(0)$ have a very uniform response to treatment, while individuals with other levels of $Y(0)$ have highly variable responses.  These examples suggest some ways that treatment effect heterogeneity may take unexpected forms which may be difficult to identify.
+
+
+
+
+
+
